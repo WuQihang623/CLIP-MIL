@@ -19,6 +19,6 @@ wz=1
 cd ../
 
 CUDA_VISIBLE_DEVICES=0 srun python src/test_clip.py --data "/home/auwqh/code/CLIP-MIL/data/stained_dataset.json" \
---template_path "/home/auwqh/code/CLIP-MIL/src/templates/is_stained.json" \
---save_dir "/home/auwqh/code/CLIP-MIL/src/performance" \
---save_name "stain_classification"
+--template_path "/home/auwqh/code/CLIP-MIL/templates/is_stained_v2.json" \
+--save_dir "/home/auwqh/code/CLIP-MIL/performance" \
+--save_name "stain_classification_v2"

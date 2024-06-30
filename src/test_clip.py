@@ -27,6 +27,8 @@ def test(args):
         f.close()
 
     text_prompt = processor(text=template, return_tensors="pt", padding=True).data
+    for key, value in text_prompt.items():
+        print(key, value.shape)
 
     dataset = CustomDataset(data["image_list"], data["label_list"], processor)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
