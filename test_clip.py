@@ -14,8 +14,8 @@ from src.datasets.custom_dataset import CustomDataset
 
 def test(args):
     device = torch.device(args.device)
-    model = CLIPModel.from_pretrained("/home/auwqh/.cache/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268/")
-    processor = CLIPProcessor.from_pretrained("/home/auwqh/.cache/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268/")
+    model = CLIPModel.from_pretrained(args.model)
+    processor = CLIPProcessor.from_pretrained(args.model)
 
     model.to(device)
     with open(args.template_path, 'r') as f:
@@ -73,6 +73,7 @@ def test(args):
 
 
 parser = argparse.ArgumentParser(description="CLIP Model Testing Script")
+parser.add_argument("--model", type=str, default="/home/auwqh/.cache/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268/")
 parser.add_argument("--device", type=str, default="cuda", help="Device to run the model on")
 parser.add_argument("--data", type=str, default="/home/auwqh/code/CLIP-MIL/data/tumor_dataset.json", help="Root directory of the dataset")
 parser.add_argument("--template_path", type=str, default="/home/auwqh/code/CLIP-MIL/src/templates/is_tumor_v2.json", help="Template for text descriptions")
