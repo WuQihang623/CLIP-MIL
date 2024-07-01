@@ -1,6 +1,8 @@
 import json
 import os
 import glob
+
+import cv2
 import numpy as np
 from PIL import Image
 from skimage import color
@@ -20,8 +22,12 @@ def is_stained(image_path):
     image = Image.open(image_path).convert('RGB')
     image = np.array(image, dtype=np.uint8)
     image = color.rgb2hed(image)
-    image_dab = image[:, :, 2]
-    return (image_dab > 0.2).sum() / (image.shape[0] * image.shape[1]) > 0.01
+    null = np.zeros((image.shape[0], image.shape[1]), dtype=np.float32)
+    image_dab = color.hed2rgb(np.stack([null, null, image[:, :, 2]], axis=-1))
+    image_dab = cv2.cvtColor(np.uint8(image_dab * 255), cv2.COLOR_BGR2GRAY)
+    image_dab = 255 - image_dab
+    image_dab = image_dab / 255.0
+    return (image_dab > 0.2).sum() > (image_dab.shape[0]*image_dab.shape[1]) * 0.1
 
 def get_tumor_image_list(data_root, save_path):
     save_image_list = []
