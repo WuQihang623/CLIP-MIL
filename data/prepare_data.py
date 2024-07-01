@@ -1,3 +1,6 @@
+"""
+    Create a dataset using doctor-annotated tumor regions to test CLIP's zero-shot classification capability.
+"""
 import json
 import os
 import glob
