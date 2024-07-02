@@ -8,14 +8,14 @@ import argparse
 
 import torch
 from torch.utils.data import DataLoader
-from transformers import CLIPProcessor, CLIPModel
 from sklearn.metrics import accuracy_score, f1_score
+
+from src import clip
 from src.datasets.custom_dataset import CustomDataset
 
-def test(args):
+def main(args):
     device = torch.device(args.device)
-    model = CLIPModel.from_pretrained(args.model)
-    processor = CLIPProcessor.from_pretrained(args.model)
+    model, preprocess = clip.load("ViT-B/32", device=device)
 
     model.to(device)
     with open(args.template_path, 'r') as f:
@@ -26,11 +26,9 @@ def test(args):
         data = json.load(f)
         f.close()
 
-    text_prompt = processor(text=template, return_tensors="pt", padding=True).data
-    for key, value in text_prompt.items():
-        print(key, value.shape)
+    text_prompt = clip.tokenize(template).to(device)
 
-    dataset = CustomDataset(data["image_list"], data["label_list"], processor)
+    dataset = CustomDataset(data["image_list"], data["label_list"], preprocess)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
     dataloader = tqdm.tqdm(dataloader, file=sys.stdout)
 
@@ -38,12 +36,9 @@ def test(args):
     true_list = []
     with torch.no_grad():
         for batch_data in dataloader:
-            inputs = batch_data["input"]
-            inputs.update(text_prompt)
-            inputs = {key: val.to(device) for key, val in inputs.items()}
+            inputs = batch_data["input"].to(device)
             label = batch_data["label"].to(device)
-            outputs = model(**inputs)
-            logits_per_image = outputs.logits_per_image # this is the image-text similarity score
+            logits_per_image, logits_per_text = model(inputs, text_prompt)
             best_matches = torch.argmax(logits_per_image, dim=1)
 
             # 添加到 pred_list 和 true_list 中
@@ -71,15 +66,15 @@ def test(args):
         f.close()
 
 
-
-parser = argparse.ArgumentParser(description="CLIP Model Testing Script")
-parser.add_argument("--model", type=str, default="/home/auwqh/.cache/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268/")
-parser.add_argument("--device", type=str, default="cuda", help="Device to run the model on")
-parser.add_argument("--data", type=str, default="/home/auwqh/code/CLIP-MIL/data/tumor_dataset.json", help="Root directory of the dataset")
-parser.add_argument("--template_path", type=str, default="/home/auwqh/code/CLIP-MIL/src/templates/is_tumor_v2.json", help="Template for text descriptions")
-parser.add_argument("--batch_size", type=int, default=128, help="Batch size for DataLoader")
-parser.add_argument('--num_workers', type=int, default=4, help="Number of workers for DataLoader")
-parser.add_argument("--save_dir", type=str, default="/home/auwqh/code/CLIP-MIL/src/performers", help="Directory to save the model")
-parser.add_argument('--save_name', type=str, default="tumor_classification_v2", help="Name of the saved file")
-args = parser.parse_args()
-test(args)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="CLIP Model Testing Script")
+    parser.add_argument("--model", type=str, default="ViT-B/32")
+    parser.add_argument("--device", type=str, default="cuda", help="Device to run the model on")
+    parser.add_argument("--data", type=str, default="/home/auwqh/code/CLIP-MIL/data/tumor_dataset.json", help="Root directory of the dataset")
+    parser.add_argument("--template_path", type=str, default="/home/auwqh/code/CLIP-MIL/src/templates/is_tumor_v2.json", help="Template for text descriptions")
+    parser.add_argument("--batch_size", type=int, default=128, help="Batch size for DataLoader")
+    parser.add_argument('--num_workers', type=int, default=4, help="Number of workers for DataLoader")
+    parser.add_argument("--save_dir", type=str, default="/home/auwqh/code/CLIP-MIL/src/performers", help="Directory to save the model")
+    parser.add_argument('--save_name', type=str, default="tumor_classification_v2", help="Name of the saved file")
+    args = parser.parse_args()
+    main(args)

@@ -35,9 +35,7 @@ class CustomDataset(Dataset):
         image_path = self.image_list[idx]
         label = self.label_list[idx]
         image = Image.open(image_path).convert('RGB')
-        inputs = self.processor(images=[image], return_tensors="pt", padding=True)
+        inputs = self.processor(image)
 
-        input_item = {key: val.squeeze(0) for key, val in inputs.items()}
-
-        return {"input": input_item, "label": label}
+        return {"input": inputs, "label": label}
 

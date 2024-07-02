@@ -11,6 +11,7 @@ import torch.nn as nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
 from src.models.ABMIL import ABMIL
 from src.models.CLAM import CLAM_MB
@@ -54,7 +55,7 @@ def main(args):
         elif args.model_name == "ABMIL":
             model = ABMIL(args.n_classes, feature_dim=args.feature_dim).to(args.device)
         elif args.model_name == "CLAM_MB":
-            model = CLAM_MB(n_classes=args.n_classes).to(args.device)
+            model = CLAM_MB(n_classes=args.n_classes, feature_dim=args.feature_dim).to(args.device)
         else:
             raise NotImplementedError
 
@@ -92,24 +93,23 @@ def main(args):
         auc_list.append(np.mean(test_auc_list))
         precision_list.append(test_precision)
         recall_list.append(test_recall)
-        prediction_list.extend(test_preds_list.tolist())
-        target_list.extend(test_targets_list.tolist())
+        prediction_list.extend(test_preds_list.reshape(-1).tolist())
+        target_list.extend(test_targets_list.reshape(-1).tolist())
 
 
     with open(os.path.join(args.save_dir, "preds.json"), "w") as f:
         f.write(json.dumps({"pred": prediction_list, "target": target_list}))
         f.close()
 
+    acc = accuracy_score(target_list, prediction_list)
+    F1 = f1_score(target_list, prediction_list, average='macro')
+    precision = precision_score(target_list, prediction_list, average='macro')
+    recall = recall_score(target_list, prediction_list, average='macro')
+
     end = time.time()
     logger.info(f"time: {end-start:.3f}")
 
-    logger.info(f"acc_list: {acc_list}")
-    logger.info(f"auc_list: {auc_list}")
-    logger.info(f"precision_list: {precision_list}")
-    logger.info(f"recall_list: {recall_list}")
-    logger.info(f"prediction_list: {prediction_list}")
-    logger.info(f"target_list: {target_list}")
-    logger.info(f"acc: {np.mean(acc_list):.3f}, auc: {np.mean(auc_list):.3f}, precision: {np.mean(precision_list):.3f}, recall: {np.mean(recall_list):.3f}")
+    logger.info(f"acc: {acc:.3f}, F1: {F1:.3f}, precision: {precision:.3f}, recall: {recall:.3f}")
 
 
 def get_args():

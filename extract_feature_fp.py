@@ -9,8 +9,8 @@ import torchvision
 import torch.nn as nn
 from torchvision import transforms
 from torch.utils.data import DataLoader
-from transformers import CLIPProcessor, CLIPModel
 
+from src import clip
 from src.feature_extraction.vision_transformers import vit_small
 from src.feature_extraction.resnet_trunc import resnet50_trunc_baseline
 from src.wsi_core.dataset_h5 import Dataset_All_Bags, Whole_Slide_Bag_FP
@@ -18,7 +18,7 @@ from src.wsi_core.utils import save_hdf5, print_network, collate_features
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 clip_RN50_path = ""
-clip_ViTB32_path = "/home/auwqh/.cache/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268/"
+clip_ViTB32_path = "ViT-B/32"
 
 def eval_transforms_clip(pretrained=False):
     if pretrained:
@@ -46,11 +46,11 @@ def load_model(enc_name, assets_dir):
         eval_t = eval_transforms(pretrained=True)
 
     elif enc_name == 'clip_RN50':
-        model = CLIPModel.from_pretrained(clip_RN50_path).to(device)
+        model, preprocess = clip.load(clip_RN50_path)
         eval_t = eval_transforms_clip(pretrained=True)
 
     elif enc_name == 'clip_ViTB32':
-        model = CLIPModel.from_pretrained(clip_ViTB32_path).to(device)
+        model, preprocess = clip.load(clip_ViTB32_path)
         eval_t = eval_transforms_clip(pretrained=True)
 
     elif enc_name == 'model_dino' or enc_name == 'dino_HIPT':
@@ -123,7 +123,7 @@ def compute_w_loader(file_path, output_path, wsi, model, enc_name,
             if (enc_name != 'clip_RN50' and enc_name != 'clip_ViTB32'):
                 features = model(batch).cpu().numpy()
             else:
-                features = model.get_image_features(batch).cpu().numpy()
+                features = model.encode_image(batch).cpu().numpy()
 
             asset_dict = {'features': features, 'coords': coords}
             save_hdf5(output_path, asset_dict, attr_dict=None, mode=mode)
@@ -133,7 +133,7 @@ def compute_w_loader(file_path, output_path, wsi, model, enc_name,
 
 def get_args():
     parser = argparse.ArgumentParser(description='Feature Extraction for Whole Slide Images')
-    parser.add_argument('--enc_name', type=str, default="resnet50_trunc", help="Name of the encoder model to use (e.g., 'resnet50_trunc', 'clip_RN50', 'clip_ViTB32').")
+    parser.add_argument('--enc_name', type=str, default="clip_ViTB32", help="Name of the encoder model to use (e.g., 'resnet50_trunc', 'clip_RN50', 'clip_ViTB32').")
     parser.add_argument('--assets_dir', type=str, default=None, help="Directory containing model assets such as checkpoint files.")
     parser.add_argument('--data_root', type=str, default="/home/auwqh/dataset/PDL1/meta_data/Testing/patch/", help="Root directory for input data.")
     parser.add_argument('--data_slide_dir', type=str, default="/home/auwqh/dataset/PDL1/meta_data/Testing/WSI/", help="Directory containing the whole slide image files.")
