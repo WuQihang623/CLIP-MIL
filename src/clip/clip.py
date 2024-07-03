@@ -10,7 +10,7 @@ from PIL import Image
 from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
 from tqdm import tqdm
 
-from .model import build_model
+from .model import build_model, build_text_encoder
 from .simple_tokenizer import SimpleTokenizer as _Tokenizer
 
 try:
@@ -23,7 +23,7 @@ except ImportError:
 if version.parse(torch.__version__) < version.parse("1.7.1"):
     warnings.warn("PyTorch version 1.7.1 or higher is recommended")
 
-__all__ = ["available_models", "load", "tokenize"]
+__all__ = ["available_models", "load", "tokenize", "load_text_encoder"]
 _tokenizer = _Tokenizer()
 
 _MODELS = {
@@ -201,6 +201,19 @@ def load(name: str, device: Union[str, torch.device] = "cuda" if torch.cuda.is_a
         model.float()
 
     return model, _transform(model.input_resolution.item())
+
+def load_text_encoder(name: str, device: Union[str, torch.device] = "cuda" if torch.cuda.is_available() else "cpu",
+                      download_root: str = None, fp16 = False):
+    if name in _MODELS:
+        model_path = _download(_MODELS[name], download_root or os.path.expanduser("~/.cache/clip"))
+    elif os.path.isfile(name):
+        model_path = name
+    else:
+        raise RuntimeError(f"Model {name} not found; available models = {available_models()}")
+
+    state_dict = torch.load(model_path, map_location="cpu")
+    model = build_text_encoder(state_dict, fp16=fp16).to(device)
+    return model
 
 
 def tokenize(texts: Union[str, List[str]], context_length: int = 77, truncate: bool = False) -> Union[

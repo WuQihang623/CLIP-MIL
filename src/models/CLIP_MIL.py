@@ -1,95 +1,64 @@
 import torch
 import random
 import torch.nn as nn
-from typing import Any, Optional, Tuple, Union
-from transformers import AutoTokenizer, CLIPConfig
+import numpy as np
 
-class LearnableTokenCLIPModel(nn.Module):
-    def __init__(self, model_name, num_learnable_tokens, instance_templates: list, instance_texts: dict, bag_templates: list, bag_texts: dict, device: str):
+from src import clip
+
+class PromptLearner(nn.Module):
+    def __init__(
+            self,
+            token_embedding,
+            context_length: int,
+            template: str,
+            texts: dict,
+            device: str,
+    ):
+        super(PromptLearner, self).__init__()
         """
         Initialize the LearnableTokenCLIPModel.
-        :param model_name:
-            The name or path of the pretrained CLIP model. This will be used to load the model configuration, tokenizer, and text encoder.
+        Initialize the class_token by leveraging the specific prompt for each category, while retaining the original SOS (Start of Sequence) and CLS, as well as EOS (End of Sequence) tokens to preserve the integrity of sequence signals for guiding subsequent model processing.
         :param num_learnable_tokens:
             The number of learnable tokens. These tokens will be inserted into the input text embeddings and optimized during training.
-        :param instance_templates:
-            A list of templates for instance categories. These templates will be used to generate specific text inputs.
-            Example: ['a histopathological image of {}', 'a microscopic image of {} in tissue,
-                      'a high magnification image of {}', 'an immunohistochemical staining of {}']
-        :param instance_texts:
+        :param templates:
+            A str of templates . These templates will be used to generate specific text inputs.
+            Example: 'a histopathological image of '
+        :param texts:
             A dictionary containing text descriptions for instance categories. The keys are category names, and the values are lists of multiple descriptions for each category.
             Example: {"tumor area": ["Flat, plate-like cells with a centrally located nucleus.", "Elongated cells with a basally located, oval-shaped nucleus."],
                       "stroma area": ["Calcified matrix with embedded osteocytes in lacunae, connected by canaliculi."]}
-        :param bag_templates:
-            A list of templates for bag categories. These templates will be used to generate specific text inputs.
-            Example: ["An immunohistochemistry WSI with a TPS score of {}"]
-        :param bag_texts:
-            A dictionary containing text descriptions for bag categories. The keys are category names, and the values are lists of multiple descriptions for each category.
-            Example: {"less than 1%": ["negligible detection of the target biomarker in the tumor area, indicating extremely low levels of immune cell infiltration"],
-                      "between 1% to 50%": ["mild to moderate expression of the target biomarker in some tumor cells, suggesting limited immune response activity",
-                      "more than 50%": ["over half of the tumor cells exhibiting strong expression of the target biomarker"]]}
         """
-        super(LearnableTokenCLIPModel, self).__init__()
-        self.config = CLIPConfig.from_pretrained(model_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.text_encoder = CLIPTextModel.from_pretrained(model_name)
-        self.device = device
-        self.bag_learnable_tokens = nn.Parameter(
-            torch.rand(num_learnable_tokens, self.config.text_config.hidden_size)
-        ).to(self.device)
-        self.instance_learnable_tokens = nn.Parameter(
-            torch.rand(num_learnable_tokens, self.config.text_config.hidden_size)
-        ).to(self.device)
 
-        self.instance_templates = instance_templates
-        self.instance_texts = instance_texts
-
-        self.bag_templates = bag_templates
-        self.bag_texts = bag_texts
         self.device = device
 
-    def get_instance_text_embedding(self):
-        texts = []
-        for propotype, descriptions in self.instance_texts.items():
-            text = random.choice(self.instance_templates).format(propotype) + random.choice([", showing{}.", ", which shows {}."]).format(random.choice(descriptions))
-            texts.append(text)
-        inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True).to(self.device)
-        inputs_ids = inputs.input_ids
-        attention_mask = inputs.attention_mask
-        learnable_tokens = self.instance_learnable_tokens.unsqueeze(0).expand(inputs_ids.size(0), -1, -1)
-        embeddings = self.text_encoder.get_input_embeddings()(input_ids=inputs_ids, position_ids=None)
-        embeddings = torch.cat([embeddings, learnable_tokens], dim=1)
-        attention_mask = torch.cat(
-            [attention_mask, torch.ones((attention_mask.size(0), self.instance_learnable_tokens.size(0)), dtype=attention_mask.dtype).to(self.device)],
-            dim=1
-        )
-        outputs = self.text_encoder(input_embeds=embeddings, attention_mask=attention_mask)
-        return outputs.pooler_output
+        self.texts = texts
+        self.n_classes = len(texts)
+        self.context_length = context_length
+        self.tokenizer = clip.tokenize
+        self.token_embedding = token_embedding
+        prompt = self.tokenizer([template for _ in range(self.n_classes)]).to(self.device)
+        with torch.no_grad():
+            embedding = self.token_embedding(prompt)
 
-    def get_bag_text_embedding(self):
-        texts = []
-        for propotype, descriptions in self.bag_texts.items():
-            text = random.choice(self.bag_templates).format(propotype) + random.choice([", showing{}.", ", which shows {}."]).format(random.choice(descriptions))
-            texts.append(text)
+        self.num_learnable_tokens = prompt.argmax(dim=-1)[0] - 1 # take out SOS
+        ctx_embedding = embedding[:, 1: self.num_learnable_tokens + 1, :]
+        self.ctx_embedding = nn.Parameter(ctx_embedding)  # to be optimized
 
-        inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True).to(self.device)
-        inputs_ids = inputs.input_ids
-        attention_mask = inputs.attention_mask
-        learnable_tokens = self.bag_learnable_tokens.unsqueeze(0).expand(inputs_ids.size(0), -1, -1)
-        embeddings = self.text_encoder.get_input_embeddings()(input_ids=inputs_ids, position_ids=None)
-        embeddings = torch.cat([embeddings, learnable_tokens], dim=1)
-        attention_mask = torch.cat(
-            [attention_mask,
-             torch.ones((attention_mask.size(0), self.bag_learnable_tokens.size(0)), dtype=attention_mask.dtype).to(self.device)],
-            dim=1
-        )
-        outputs = self.text_encoder(inputs_embeds=embeddings, attention_mask=attention_mask)
-        return outputs.pooler_output
 
     def forward(self):
-        instance_embedding = self.get_instance_text_embedding()
-        bag_embdding = self.get_bag_text_embedding()
-        return instance_embedding, bag_embdding
+        suffix_text = ["{}, which shows {}.".format(class_name, random.choice(descriptions)) for class_name, descriptions in self.texts.items()]
+        prompt = self.tokenizer(suffix_text, context_length=self.context_length - self.num_learnable_tokens)
+        with torch.no_grad():
+            embedding = self.token_embedding(prompt)
+        prefix_token = embedding[:, :1, :] # SOS
+        suffix_token = embedding[:, 1:, :] # class token and EOS
+
+        ctx = self.ctx_embedding
+
+        token = torch.cat([prefix_token, ctx, suffix_token], dim=1)
+
+        eos_position = self.num_learnable_tokens + prompt.argmax(dim=-1)
+        return token, eos_position
 
 
 class Adaptor(nn.Module):
@@ -101,43 +70,98 @@ class Adaptor(nn.Module):
         return x + self.fc(x)
 
 class PromptGuidePooling(nn.Module):
-    def __init__(self):
+    def __init__(self, num_prototype: int):
         super(PromptGuidePooling, self).__init__()
-        pass
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        weights = torch.zeros((1, num_prototype))
+        weights[0, 0] = 1
+        self.prototype_weight = nn.Parameter(weights)
+
+    def forward(self, image_features, text_features):
+        image_features = image_features.squeeze(0)
+        image_features_norm = image_features / image_features.norm(dim=-1, keepdim=True)
+        text_features_norm = text_features / text_features.norm(dim=1, keepdim=True)
+
+        # cosine similarity as logits
+        logit_scale = self.logit_scale.exp()
+        logits_per_image = logit_scale * image_features_norm @ text_features_norm.t()
+
+        weights = logits_per_image.softmax(dim=0)
+        image_features = weights.T @ image_features
+
+        image_features = self.prototype_weight @ image_features
+        return image_features, weights
+
 
 class CLIP_MIL(nn.Module):
-    def __init__(self, feat_dim, text_enc_name, instance_text: list, bag_text: list):
+    def __init__(
+            self,
+            feat_dim: int,
+            text_enc_name: str,
+            instance_template: str,
+            instance_texts: dict,
+            bag_template: str,
+            bag_texts: dict,
+            device: str
+    ):
         super(CLIP_MIL, self).__init__()
         self.feat_dim = feat_dim
-        self.text_encoder = CLIPTextModel.from_pretrained(text_enc_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(text_enc_name)
         self.adaptor = Adaptor(feat_dim)
-        self.instance_text = instance_text
-        self.bag_text = bag_text
 
-    def bag_level_prompt(self):
-        pass
+        self.text_encoder = clip.load_text_encoder(name=text_enc_name, device=device)
+        self.device = device
 
-    def instance_level_prompt(self):
-        pass
+        self.instance_texts = instance_texts
+        self.bag_texts = bag_texts
 
-    def forward(self, x):
-        x = self.adaptor(x)
+        self.instance_promptor = PromptLearner(
+            token_embedding=self.text_encoder.token_embedding,
+            context_length=77,
+            template=instance_template,
+            texts=instance_texts,
+            device=device,
+        )
 
+        self.bag_promptor = PromptLearner(
+            token_embedding=self.text_encoder.token_embedding,
+            context_length=77,
+            template=bag_template,
+            texts=bag_texts,
+            device=device,
+        )
+
+        self.prompt_pooling = PromptGuidePooling(num_prototype=len(self.instance_texts))
+
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+
+    def forward(self, image_features):
+        # instance text prompt
+        inst_text_token, inst_eos_pos = self.instance_promptor()
+        inst_text_features = self.text_encoder(inst_text_token, inst_eos_pos)
+
+        # bag text promt
+        bag_text_token, bag_eos_pos = self.bag_promptor()
+        bag_text_features = self.text_encoder(bag_text_token, bag_eos_pos)
+
+        image_features = self.adaptor(image_features)
+
+        image_features, inst_attn = self.prompt_pooling(image_features, inst_text_features)
+
+        image_features = image_features / image_features.norm(dim=1, keepdim=True)
+        bag_text_features = bag_text_features / bag_text_features.norm(dim=1, keepdim=True)
+
+        logit_scal = self.logit_scale.exp()
+        logits = logit_scal * image_features @ bag_text_features.t()
+
+        return logits, inst_attn
 
 if __name__ == '__main__':
-    model = LearnableTokenCLIPModel(
-        model_name="/home/auwqh/.cache/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268/",
-        num_learnable_tokens=10, instance_templates=['a histopathological image of {}', 'a microscopic image of {} in tissue',
-                                                     'a high magnification image of {}', 'an immunohistochemical staining of {}'],
-        instance_texts={"tumor area": ["Flat, plate-like cells with a centrally located nucleus.", "Elongated cells with a basally located, oval-shaped nucleus."],
-                        "stroma area": ["Calcified matrix with embedded osteocytes in lacunae, connected by canaliculi."]},
-        bag_templates=["An immunohistochemistry WSI with a TPS score of {}"],
-        bag_texts={"less than 1%": ["negligible detection of the target biomarker in the tumor area, indicating extremely low levels of immune cell infiltration"],
-                   "between 1% to 50%": ["mild to moderate expression of the target biomarker in some tumor cells, suggesting limited immune response activity"],
-                   "more than 50%": ["over half of the tumor cells exhibiting strong expression of the target biomarker"]},
-        device="cpu"
+    import yaml
+    with open("/home/auwqh/code/CLIP-MIL/examples/config/clip_mil_vit_b32.yaml", 'r') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+        f.close()
+    model = CLIP_MIL(
+        **config["model"]
     )
-    instance_embedding, bag_embdding = model()
-    print(instance_embedding.shape)
-    print(bag_embdding.shape)
+    logits, inst_attn = model(torch.randn(1, 1024, 512))
+    print(logits.shape, inst_attn.shape)
