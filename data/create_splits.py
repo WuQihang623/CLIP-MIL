@@ -63,4 +63,4 @@ if __name__ == '__main__':
     scores = df["诊断结果"].to_numpy(np.uint8)
     labels = convert_score_to_label(scores)
     print(labels)
-    split_data(patient_ids, labels, 1, save_dir)
+    split_data(patient_ids, labels, 2024, save_dir)

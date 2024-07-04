@@ -36,20 +36,33 @@ class CrossEntropy(nn.Module):
 
 
 class MIL_Loss(nn.Module):
-    def __init__(self):
+    def __init__(self, use_kl=True, lambda_kl=1):
         super(MIL_Loss, self).__init__()
+        self.use_kl = use_kl
+        self.lambda_kl = lambda_kl
         self.loss_ce = CrossEntropy()
-        self.loss_kl = KLLoss()
+        if self.use_kl:
+            self.loss_kl = KLLoss()
 
-    def forward(self, preds_cls, preds_bag, targets_cls, targets_bag):
+    def forward(self, preds_cls, targets_cls, **kwargs):
         loss_ce = self.loss_ce(preds_cls, targets_cls)
-        loss_kl = self.loss_kl(preds_bag, targets_bag)
-        loss = loss_ce + loss_kl
-        loss_dict = {
-            'loss_ce': loss_ce,
-            'loss_kl': loss_kl,
-            'loss': loss
-        }
+
+        if self.use_kl:
+            preds_bag = kwargs["preds_bag"]
+            targets_bag = kwargs["preds_bag"]
+            loss_kl = self.loss_kl(preds_bag, targets_bag) * self.lambda_kl
+            loss = loss_ce + loss_kl
+            loss_dict = {
+                'loss_ce': loss_ce,
+                'loss_kl': loss_kl,
+                'loss': loss
+            }
+        else:
+            loss = loss_ce
+            loss_dict = {
+                "loss_ce": loss,
+                "loss": loss
+            }
         return loss_dict
 
 

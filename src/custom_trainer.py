@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score
+from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
 
 def calculate_metrics(predictions, targets):
     _, pred = predictions.topk(1, 1, True, True)
@@ -64,17 +64,13 @@ def test_one_epoch(model, loader, critetion, device):
 
     running_loss /= (len(loader))
 
-    auc_list = []
-    probs_list = np.array(probs_list, dtype=np.float32)
     targets_list = np.array(targets_list, dtype=np.int32)
     preds_list = np.array(preds_list, dtype=np.int32)
     acc = accuracy_score(targets_list, preds_list)
-    for idx in range(probs_list.shape[1]):
-        auc_list.append(roc_auc_score((targets_list==idx).astype(int), probs_list[:, idx]))
-
+    f1 = f1_score(targets_list, preds_list, average="macro")
     precision = precision_score(targets_list, preds_list, average="macro")
     recall = recall_score(targets_list, preds_list, average="macro")
 
-    return running_loss, acc, auc_list, precision, recall, preds_list, targets_list
+    return running_loss, acc, f1, precision, recall, preds_list, targets_list
         
         

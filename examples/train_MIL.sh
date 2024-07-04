@@ -2,8 +2,8 @@
 #SBATCH --job-name=train_MIL         # 作业名称
 #SBATCH --output=log/output_%x_%j.log      # 输出文件名，%j代表作业ID
 #SBATCH --error=log/error_%x_%j.log        # 错误文件名
-#SBATCH -p RTX3090  ## 指定分区
-#SBATCH -w gpu06  ## 节点id
+#SBATCH -p A100  ## 指定分区
+#SBATCH -w gpu09  ## 节点id
 #SBATCH -N 1        ## 使用节点数
 #SBATCH -n 1        ## 任务数
 #SBATCH --gres=gpu:1 ##申请gpu数量
@@ -43,6 +43,7 @@ srun python train_MIL.py --model_name "CLAM_MB" \
 --fold_dir "/home/auwqh/code/CLIP-MIL/data/PDL1_fold" --batch_size 1 \
 --n_epochs 50 --workers 4 --save_dir "/home/auwqh/code/CLIP-MIL/save_weights" \
 --log_name "CLAM_MB_resnet50_imagenet_weights" --lr 0.0001 --step_size 15 --gamma 0.1
+
 
 
 srun python train_MIL.py --model_name "TransMIL" \

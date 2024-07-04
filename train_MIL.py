@@ -21,10 +21,6 @@ from src.datasets.dataset_MIL import dataset_MIL
 from src.custom_trainer import train_one_epoch, test_one_epoch
 
 def main(args):
-    acc_list = []
-    auc_list = []
-    precision_list = []
-    recall_list = []
     prediction_list = [] # 测试集的模型预测结果
     target_list = [] # 测试集的真实标签
     start = time.time()
@@ -66,12 +62,12 @@ def main(args):
 
         checkpoint_path = os.path.join(args.save_dir, f'model_fold{k}.pth')
         best_acc = 0
-        patience = 10
+        patience = args.early_stop
         now_patience = 0
         for epoch in range(args.n_epochs):
             train_loss, train_err = train_one_epoch(model, train_loader, criterion, optimizer, epoch, args.device, logger, args)
-            val_loss, val_acc, val_auc_list, val_precision, val_recall, val_preds_list, val_targets_list = test_one_epoch(model, val_loader, criterion, args.device)
-            logger.info(f"Epoch: {epoch}, train_loss: {train_loss:.3f}, train_err: {train_err:.3f}, val_loss: {val_loss:.3f}, val_acc: {val_acc:.3f}, val_auc: {np.mean(val_auc_list):.3f}, val_precision: {val_precision:.3f}, val_recall: {val_recall:.3f}")
+            val_loss, val_acc, val_f1, val_precision, val_recall, val_preds_list, val_targets_list = test_one_epoch(model, val_loader, criterion, args.device)
+            logger.info(f"Epoch: {epoch}, train_loss: {train_loss:.3f}, train_err: {train_err:.3f}, val_loss: {val_loss:.3f}, val_acc: {val_acc:.3f}, val_f1: {val_f1:.3f}, val_precision: {val_precision:.3f}, val_recall: {val_recall:.3f}")
             scheduler.step()
 
             if best_acc < val_acc:
@@ -87,12 +83,8 @@ def main(args):
                 break
 
         model.load_state_dict(torch.load(checkpoint_path, map_location='cpu'), strict=True)
-        test_loss, test_acc, test_auc_list, test_precision, test_recall, test_preds_list, test_targets_list = test_one_epoch(
-            model, val_loader, criterion, args.device)
-        acc_list.append(test_acc)
-        auc_list.append(np.mean(test_auc_list))
-        precision_list.append(test_precision)
-        recall_list.append(test_recall)
+        test_loss, test_acc, test_f1, test_precision, test_recall, test_preds_list, test_targets_list = test_one_epoch(
+            model, test_loader, criterion, args.device)
         prediction_list.extend(test_preds_list.reshape(-1).tolist())
         target_list.extend(test_targets_list.reshape(-1).tolist())
 
@@ -131,6 +123,7 @@ def get_args():
     parser.add_argument("--weight_decay", type=float, default=1e-4)
     parser.add_argument('--step_size', type=int, default=10)
     parser.add_argument('--gamma', type=float, default=0.1)
+    parser.add_argument('--early_stop', type=int, default=20)
     args = parser.parse_args()
     return args
 

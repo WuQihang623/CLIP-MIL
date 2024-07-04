@@ -12,6 +12,7 @@ class PromptLearner(nn.Module):
             context_length: int,
             template: str,
             texts: dict,
+            use_CoOP: bool,
             trainable_prompt: bool,
             device: str,
     ):
@@ -38,27 +39,47 @@ class PromptLearner(nn.Module):
         self.tokenizer = clip.tokenize
         self.token_embedding = token_embedding
 
+        self.use_CoOP = use_CoOP
         self.trainable = trainable_prompt
-        if trainable_prompt:
-            prompts = []
-            for class_name, descriptions in texts.items():
-                if descriptions is None:
-                    prompts.append(f"{class_name}.")
-                else:
-                    prompts.append(f"{class_name}, which shows {random.choice(descriptions)}")
-            prompts = self.tokenizer(prompts).to(self.device)
-            self.eos_postion = prompts.argmax(dim=-1)
-            with torch.no_grad():
-                embedding = self.token_embedding(prompts)
-            self.ctx_embedding = nn.Parameter(embedding)
-        else:
-            prompt = self.tokenizer([template for _ in range(self.n_classes)]).to(self.device)
-            with torch.no_grad():
-                embedding = self.token_embedding(prompt)
 
-            self.num_learnable_tokens = prompt.argmax(dim=-1)[0] - 1 # take out SOS
-            ctx_embedding = embedding[:, 1: self.num_learnable_tokens + 1, :]
-            self.ctx_embedding = nn.Parameter(ctx_embedding)  # to be optimized
+        if self.use_CoOP is False:
+            assert self.trainable is False
+
+        if self.use_CoOP:
+            if trainable_prompt:
+                prompts = []
+                for class_name, descriptions in texts.items():
+                    if descriptions is None:
+                        prompts.append(f"{class_name}.")
+                    else:
+                        prompts.append(f"{class_name}, which shows {random.choice(descriptions)}")
+                prompts = self.tokenizer(prompts).to(self.device)
+                self.eos_postion = prompts.argmax(dim=-1)
+                with torch.no_grad():
+                    embedding = self.token_embedding(prompts)
+                self.ctx_embedding = nn.Parameter(embedding)
+            else:
+                prompt = self.tokenizer([template for _ in range(self.n_classes)]).to(self.device)
+                with torch.no_grad():
+                    embedding = self.token_embedding(prompt)
+
+                self.num_learnable_tokens = prompt.argmax(dim=-1)[0] - 1 # take out SOS
+                ctx_embedding = embedding[:, 1: self.num_learnable_tokens + 1, :]
+                self.ctx_embedding = nn.Parameter(ctx_embedding)  # to be optimized
+
+    def forward_fixed(self):
+        suffix_text = []
+        for class_name, descriptions in self.texts.items():
+            if descriptions is None:
+                suffix_text.append(f"{class_name}.")
+            else:
+                suffix_text.append(f"{class_name}, which shows {random.choice(descriptions)}")
+        prompt = self.tokenizer(suffix_text, context_length=self.context_length).to(self.device)
+        with torch.no_grad():
+            embedding = self.token_embedding(prompt)
+        eos_position = prompt.argmax(dim=-1)
+        return embedding, eos_position
+
 
     def forward_trainable(self):
         ctx_embedding = self.ctx_embedding
@@ -85,10 +106,13 @@ class PromptLearner(nn.Module):
         return token, eos_position
 
     def forward(self):
-        if self.trainable:
-            return self.forward_trainable()
+        if self.use_CoOP:
+            if self.trainable:
+                return self.forward_trainable()
+            else:
+                return self.forward_untrainable()
         else:
-            return self.forward_untrainable()
+            return self.forward_fixed()
 
 class Adaptor(nn.Module):
     def __init__(self, feat_dim):
@@ -100,12 +124,14 @@ class Adaptor(nn.Module):
         return x + self.relu(self.fc(x))
 
 class PromptGuidePooling(nn.Module):
-    def __init__(self, num_prototype: int):
+    def __init__(self, num_prototype: int, learnabel_pooling: bool):
         super(PromptGuidePooling, self).__init__()
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         weights = torch.zeros((1, num_prototype))
         weights[0, 0] = 1
         self.prototype_weight = nn.Parameter(weights)
+        if learnabel_pooling is False:
+            self.prototype_weight.requires_grad = False
 
     def forward(self, image_features, text_features):
         image_features = image_features.squeeze(0)
@@ -134,7 +160,9 @@ class CLIP_MIL(nn.Module):
             bag_texts: dict,
             cls_template: str,
             cls_texts: dict,
+            use_CoOP: bool,
             trainable_prompt: bool,
+            learnabel_pooling: bool,
             device: str
     ):
         super(CLIP_MIL, self).__init__()
@@ -152,15 +180,7 @@ class CLIP_MIL(nn.Module):
             context_length=77,
             template=instance_template,
             texts=instance_texts,
-            trainable_prompt=trainable_prompt,
-            device=device,
-        )
-
-        self.bag_promptor = PromptLearner(
-            token_embedding=self.text_encoder.token_embedding,
-            context_length=77,
-            template=bag_template,
-            texts=bag_texts,
+            use_CoOP=use_CoOP,
             trainable_prompt=trainable_prompt,
             device=device,
         )
@@ -170,42 +190,56 @@ class CLIP_MIL(nn.Module):
             context_length=77,
             template=cls_template,
             texts=cls_texts,
+            use_CoOP=use_CoOP,
             trainable_prompt=trainable_prompt,
             device=device,
         )
 
-        self.prompt_pooling = PromptGuidePooling(num_prototype=len(self.instance_texts))
-
-        self.bag_prompt_logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.prompt_pooling = PromptGuidePooling(num_prototype=len(self.instance_texts), learnabel_pooling=learnabel_pooling)
         self.cls_logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+
+        self.bag_promptor = None
+        self.bag_prompt_logit_scale = None
+        if bag_template is not None:
+            self.bag_promptor = PromptLearner(
+                token_embedding=self.text_encoder.token_embedding,
+                context_length=77,
+                template=bag_template,
+                texts=bag_texts,
+                use_CoOP=use_CoOP,
+                trainable_prompt=trainable_prompt,
+                device=device,
+            )
+            self.bag_prompt_logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
     def forward(self, image_features):
         # instance text prompt
         inst_text_token, inst_eos_pos = self.instance_promptor()
         inst_text_features = self.text_encoder(inst_text_token, inst_eos_pos)
 
-        # bag text promt
-        bag_text_token, bag_eos_pos = self.bag_promptor()
-        bag_text_features = self.text_encoder(bag_text_token, bag_eos_pos)
-
         # class text prompt
         cls_text_token, cls_eos_pos = self.cls_promptor()
         cls_text_features = self.text_encoder(cls_text_token, cls_eos_pos)
 
+
         image_features = self.adaptor(image_features)
-
         image_features, inst_attn = self.prompt_pooling(image_features, inst_text_features)
-
         image_features = image_features / image_features.norm(dim=1, keepdim=True)
-        bag_text_features = bag_text_features / bag_text_features.norm(dim=1, keepdim=True)
         cls_text_features = cls_text_features / cls_text_features.norm(dim=1, keepdim=True)
-
-        bag_prompt_logit_scale = self.bag_prompt_logit_scale.exp()
-        bag_prompt_logits = bag_prompt_logit_scale * image_features @ bag_text_features.t()
         cls_logit_scal = self.cls_logit_scale.exp()
         cls_logits = cls_logit_scal * image_features @ cls_text_features.t()
 
-        return {"cls_logits": cls_logits, "bag_prompt_logits": bag_prompt_logits, "inst_attn": inst_attn}
+        # bag text promt
+        if self.bag_promptor is not None:
+            bag_text_token, bag_eos_pos = self.bag_promptor()
+            bag_text_features = self.text_encoder(bag_text_token, bag_eos_pos)
+            bag_text_features = bag_text_features / bag_text_features.norm(dim=1, keepdim=True)
+            bag_prompt_logit_scale = self.bag_prompt_logit_scale.exp()
+            bag_prompt_logits = bag_prompt_logit_scale * image_features @ bag_text_features.t()
+            return {"cls_logits": cls_logits, "bag_prompt_logits": bag_prompt_logits, "inst_attn": inst_attn}
+
+        else:
+            return {"cls_logits": cls_logits, "inst_attn": inst_attn}
 
 if __name__ == '__main__':
     import yaml

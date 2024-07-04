@@ -77,28 +77,30 @@ def main(config):
         pg = [p for p in model.parameters() if p.requires_grad]
         optimizer = Adam(pg, lr=config['lr'])
 
+
+        sched_cfg = config["scheduler"]
         lr_lambda = lambda step: warmup_lr_lambda(
-            step, config["scheduler"]["warmup_epochs"], config["scheduler"]["base_lr"], config["scheduler"]["max_lr"]
-        ) / config["scheduler"]["max_lr"]
+            step, sched_cfg["warmup_steps"], sched_cfg["base_lr"], sched_cfg["max_lr"]
+        ) / sched_cfg["max_lr"]
 
         warmup_scheduler = LambdaLR(optimizer, lr_lambda=lr_lambda)
         cosine_anneal_scheduler = CosineAnnealingLR(
-            optimizer, T_max=config["scheduler"]["T_max"], eta_min=config["scheduler"]["eta_min"]
+            optimizer, T_max=sched_cfg["T_max"], eta_min=sched_cfg["eta_min"]
         )
         scheduler = SequentialLR(
             optimizer,
             schedulers=[warmup_scheduler, cosine_anneal_scheduler],
-            milestones=[config["scheduler"]["warmup_epochs"]]  # 热身结束的epoch作为切换点
+            milestones=[sched_cfg["warmup_steps"]]  # 热身结束的epoch作为切换点
         )
 
         checkpoint_path = os.path.join(args.save_dir, f'model_fold{k}.pth')
         best_f1 = 0
         patience = config["early_stop"]
         now_patience = 0
-        loss_fn = MIL_Loss()
+        loss_fn = MIL_Loss(use_kl=model.bag_promptor is not None, lambda_kl=config["lambda_kl"])
         for epoch in range(config["n_epochs"]):
             train_loss, train_err = train_one_epoch(
-                model, train_loader, loss_fn, optimizer, epoch, config["model"]["device"], logger
+                model, train_loader, loss_fn, optimizer, scheduler, epoch, config["model"]["device"], logger
             )
             val_loss, val_acc, val_f1, val_precision, val_recall, val_preds_list, val_targets_list = test_one_epoch(
                 model, val_loader, loss_fn, config["model"]["device"]
@@ -106,7 +108,6 @@ def main(config):
             current_lr = optimizer.param_groups[0]['lr']
             logger.info(f"Epoch: {epoch}, train_loss: {train_loss:.3f}, train_err: {train_err:.3f}, val_loss: {val_loss:.3f}, val_acc: {val_acc:.3f}, val_f1: {val_f1:.3f}, val_precision: {val_precision:.3f}, val_recall: {val_recall:.3f}, lr: {current_lr:.9f}")
 
-            scheduler.step()
             if best_f1 < val_f1:
                 now_patience = 0
                 best_f1 = val_f1
@@ -145,7 +146,7 @@ def get_args():
     parser = argparse.ArgumentParser(description="Train CLIP MIL model")
     parser.add_argument('--config', type=str, default='/home/auwqh/code/CLIP-MIL/examples/config/clip_mil_vit_b32_no_descrip.yaml', help='Path to config file')
     parser.add_argument('--save_dir', type=str, default='/home/auwqh/code/CLIP-MIL/save_weights', help='Path to save results')
-    parser.add_argument('--log_name', type=str, default='CLIP_MIL_VITB32', help='Name of log file')
+    parser.add_argument('--log_name', type=str, default='CLIP_MIL_VITB32_v2', help='Name of log file')
     parser.add_argument('--feat_dir', type=str, default="/home/auwqh/dataset/PDL1/meta_data/Testing/patch/clip_ViTB32/pt_files/")
     parser.add_argument('--fold_dir', type=str, default="/home/auwqh/code/CLIP-MIL/data/PDL1_fold")
 

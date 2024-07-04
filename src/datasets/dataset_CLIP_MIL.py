@@ -59,6 +59,10 @@ class dataset_CLIP_MIL(Dataset):
             score = self.pdl1_score(patient_id, clinical)
             score_ids = find_nearest_index(bag_prompts_level, score)
             scores.append(score_ids)
+
+        print("-----label and score----")
+        for l, s in zip(label, scores):
+            print(l, s)
         return patient_ids, label, scores
 
 if __name__ == '__main__':

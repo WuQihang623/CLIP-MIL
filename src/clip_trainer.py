@@ -13,11 +13,9 @@ def calculate_metrics(predictions, targets):
     return err, fps, fns
 
 
-def train_one_epoch(model, loader, loss_fn, optimizer, epoch, device, logger):
+def train_one_epoch(model, loader, loss_fn, optimizer, scheduler, epoch, device, logger):
     model.train()
-    total_loss = 0.
-    total_loss_ce = 0.
-    total_loss_kl = 0.
+    total_loss = {}
     total_err = 0.
 
     for step, (inputs, targets, clinical_scores) in enumerate(loader):
@@ -28,33 +26,38 @@ def train_one_epoch(model, loader, loss_fn, optimizer, epoch, device, logger):
         predictions = model(inputs)
         loss_dict = loss_fn(
             preds_cls=predictions["cls_logits"],
-            preds_bag=predictions["bag_prompt_logits"],
             targets_cls=targets,
+            preds_bag=predictions.get("bag_prompt_logits"),
             targets_bag=clinical_scores)
         loss = loss_dict["loss"]
         loss.backward()
 
         optimizer.step()
         optimizer.zero_grad()
+        scheduler.step()
 
-        total_loss += loss.item() * targets.shape[0]
-        total_loss_ce += loss_dict["loss_ce"].item() * targets.shape[0]
-        total_loss_kl += loss_dict["loss_kl"].item() * targets.shape[0]
+        for k, v in loss_dict.items():
+            if k not in total_loss:
+                total_loss[k] = 0.
+            total_loss[k] += v.item() * targets.shape[0]
 
         err, fps, fns = calculate_metrics(predictions["cls_logits"].detach(), targets.cpu())
         total_err += err
 
-    total_loss = total_loss / len(loader.dataset)
-    total_loss_ce = total_loss_ce / len(loader.dataset)
-    total_loss_kl = total_loss_kl / len(loader.dataset)
+    for k, v in total_loss.items():
+        total_loss[k] = total_loss[k] / len(loader.dataset)
     total_err = total_err / len(loader.dataset)
-    logger.info(f"Epoch {epoch} | Train | Loss: {total_loss:.4f} | Loss_ce: {total_loss_ce:.4f} | Loss_kl: {total_loss_kl:.4f} | Acc: {1 - total_err:.4f}")
-    return total_loss, total_err
+    string = f"Epoch {epoch} | Train | Acc: {1 - total_err:.4f} "
+    for k, v in total_loss.items():
+        string += f"| {k}: {v:.3f}"
+    logger.info(string)
+    return total_loss["loss"], 1 - total_err
+
 
 @torch.no_grad()
 def test_one_epoch(model, loader, loss_fn, device):
     model.eval()
-    total_loss = 0.
+    total_loss = {}
     preds_list = []
     targets_list = []
 
@@ -67,16 +70,20 @@ def test_one_epoch(model, loader, loss_fn, device):
         preds = predictions["cls_logits"].detach().argmax(dim=1)
         loss_dict = loss_fn(
             preds_cls=predictions["cls_logits"],
-            preds_bag=predictions["bag_prompt_logits"],
             targets_cls=targets,
+            preds_bag=predictions.get("bag_prompt_logits"),
             targets_bag=clinical_scores)
 
-        total_loss += loss_dict["loss"].item() * targets.shape[0]
+        for k, v in loss_dict.items():
+            if k not in total_loss:
+                total_loss[k] = 0.
+            total_loss[k] += v.item() * targets.shape[0]
 
         preds_list.extend(preds.cpu().numpy().tolist())
         targets_list.extend(targets.cpu().numpy().tolist())
 
-    total_loss = total_loss / len(loader.dataset)
+    for k, v in total_loss.items():
+        total_loss[k] = total_loss[k] / len(loader.dataset)
 
     targets_list = np.array(targets_list, dtype=np.int32)
     preds_list = np.array(preds_list, dtype=np.int32)
@@ -85,6 +92,6 @@ def test_one_epoch(model, loader, loss_fn, device):
     precision = precision_score(targets_list, preds_list, average="macro")
     recall = recall_score(targets_list, preds_list, average="macro")
 
-    return total_loss, acc, f1, precision, recall, preds_list, targets_list
+    return total_loss["loss"], acc, f1, precision, recall, preds_list, targets_list
 
 
