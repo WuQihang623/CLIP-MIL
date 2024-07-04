@@ -57,8 +57,8 @@ model:
       - "within the tumor area, some cells exhibit moderate brown staining intensity"
     "High PD-L1 expression":
       - "in the tumor region, the majority of cells display strong brown staining, with stained cells occupying a substantial portion of the field of view"
-  use_CoOP: true
-  trainable_prompt: true
+  use_CoOP: false
+  trainable_prompt: false
   learnabel_pooling: false
   device: cuda
 clinical_path: "/home/auwqh/dataset/PDL1/meta_data/excel_data/PDL1_score_clinical.xlsx"
@@ -76,3 +76,4 @@ seed: 2022
 early_stop: 20
 lambda_kl: 3
 instance_text_loss: false
+temperature: 0.07

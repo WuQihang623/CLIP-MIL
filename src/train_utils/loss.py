@@ -36,33 +36,43 @@ class CrossEntropy(nn.Module):
 
 
 class MIL_Loss(nn.Module):
-    def __init__(self, use_kl=True, lambda_kl=1):
+    def __init__(self, use_kl, instance_text_loss=False, temperature=0.07, lambda_kl=1):
         super(MIL_Loss, self).__init__()
         self.use_kl = use_kl
+        self.instance_text_loss = instance_text_loss
         self.lambda_kl = lambda_kl
         self.loss_ce = CrossEntropy()
         if self.use_kl:
             self.loss_kl = KLLoss()
+        self.temperature = temperature
 
     def forward(self, preds_cls, targets_cls, **kwargs):
         loss_ce = self.loss_ce(preds_cls, targets_cls)
 
         if self.use_kl:
             preds_bag = kwargs["preds_bag"]
-            targets_bag = kwargs["preds_bag"]
+            targets_bag = kwargs["targets_bag"]
             loss_kl = self.loss_kl(preds_bag, targets_bag) * self.lambda_kl
             loss = loss_ce + loss_kl
             loss_dict = {
                 'loss_ce': loss_ce,
                 'loss_kl': loss_kl,
-                'loss': loss
             }
         else:
             loss = loss_ce
             loss_dict = {
                 "loss_ce": loss,
-                "loss": loss
             }
+
+        if self.instance_text_loss:
+            inst_text_features = kwargs["inst_text_features"]
+            inst_text_features = inst_text_features / inst_text_features.norm(dim=1, keepdim=True)
+            logit_t2t = inst_text_features @ inst_text_features.T / self.temperature
+            loss_t2t = F.cross_entropy(logit_t2t, torch.arange(logit_t2t.size(0)).to(logit_t2t.device))
+            loss += loss_t2t
+            loss_dict["loss_t2t"] = loss_t2t
+
+        loss_dict["loss"] = loss
         return loss_dict
 
 

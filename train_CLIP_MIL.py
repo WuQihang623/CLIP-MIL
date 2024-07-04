@@ -97,7 +97,7 @@ def main(config):
         best_f1 = 0
         patience = config["early_stop"]
         now_patience = 0
-        loss_fn = MIL_Loss(use_kl=model.bag_promptor is not None, lambda_kl=config["lambda_kl"])
+        loss_fn = MIL_Loss(use_kl=True if model.bag_promptor is not None else False, lambda_kl=config["lambda_kl"], instance_text_loss=config["instance_text_loss"], temperature=config["temperature"])
         for epoch in range(config["n_epochs"]):
             train_loss, train_err = train_one_epoch(
                 model, train_loader, loss_fn, optimizer, scheduler, epoch, config["model"]["device"], logger
@@ -106,7 +106,7 @@ def main(config):
                 model, val_loader, loss_fn, config["model"]["device"]
             )
             current_lr = optimizer.param_groups[0]['lr']
-            logger.info(f"Epoch: {epoch}, train_loss: {train_loss:.3f}, train_err: {train_err:.3f}, val_loss: {val_loss:.3f}, val_acc: {val_acc:.3f}, val_f1: {val_f1:.3f}, val_precision: {val_precision:.3f}, val_recall: {val_recall:.3f}, lr: {current_lr:.9f}")
+            logger.info(f"Epoch: {epoch} | train_loss: {train_loss:.3f} | train_err: {train_err:.3f} | val_loss: {val_loss:.3f} | val_acc: {val_acc:.3f} |\nEpoch: {epoch} | val_f1: {val_f1:.3f} | val_precision: {val_precision:.3f} | val_recall: {val_recall:.3f} | lr: {current_lr:.9f}")
 
             if best_f1 < val_f1:
                 now_patience = 0

@@ -18,14 +18,20 @@ export PYTHONPATH=./:$PYTHONPATH
 wz=1
 cd ../
 
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/description/clip_mil_vit_b32.yaml" \
-                              --log_name "clip_mil_vit_b32_descrip"
+#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/description/clip_mil_vit_b32.yaml" \
+#                              --log_name "clip_mil_vit_b32_descrip"
+#
+#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/description/clip_mil_vit_b32_BagPrompt.yaml" \
+#                              --log_name "clip_mil_vit_b32_descrip_BagPrompt"
+#
+#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/description/clip_mil_vit_b32_BagPrompt_CoOP.yaml" \
+#                              --log_name "clip_mil_vit_b32_descrip_BagPrompt_CoOP"
+#
+#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/description/clip_mil_vit_b32_BagPrompt_trainablePrompt.yaml" \
+#                              --log_name "clip_mil_vit_b32_descrip_BagPrompt_trainablePrompt"
+#
+#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/description/clip_mil_vit_b32_BagPrompt_trainablePrompt_learnabelPooling.yaml" \
+#                              --log_name "clip_mil_vit_b32_descrip_BagPrompt_trainablePrompt_learnabelPooling"
 
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/description/clip_mil_vit_b32_CoOP.yaml" \
-                              --log_name "clip_mil_vit_b32_descrip_CoOP"
-
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/description/clip_mil_vit_b32_trainablePrompt.yaml" \
-                              --log_name "clip_mil_vit_b32_descrip_trainablePrompt"
-
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/description/clip_mil_vit_b32_trainablePrompt_learnabelPooling.yaml" \
-                              --log_name "clip_mil_vit_b32_descrip_trainablePrompt_learnabelPooling"
+srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/description/clip_mil_vit_b32_BagPrompt_trainablePrompt_learnablePooling_contrast.yaml" \
+                              --log_name "clip_mil_vit_b32_descrip_BagPrompt_trainablePrompt_learnabelPooling_contrast"

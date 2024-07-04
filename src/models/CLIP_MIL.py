@@ -221,7 +221,6 @@ class CLIP_MIL(nn.Module):
         cls_text_token, cls_eos_pos = self.cls_promptor()
         cls_text_features = self.text_encoder(cls_text_token, cls_eos_pos)
 
-
         image_features = self.adaptor(image_features)
         image_features, inst_attn = self.prompt_pooling(image_features, inst_text_features)
         image_features = image_features / image_features.norm(dim=1, keepdim=True)
@@ -236,10 +235,10 @@ class CLIP_MIL(nn.Module):
             bag_text_features = bag_text_features / bag_text_features.norm(dim=1, keepdim=True)
             bag_prompt_logit_scale = self.bag_prompt_logit_scale.exp()
             bag_prompt_logits = bag_prompt_logit_scale * image_features @ bag_text_features.t()
-            return {"cls_logits": cls_logits, "bag_prompt_logits": bag_prompt_logits, "inst_attn": inst_attn}
+            return {"cls_logits": cls_logits, "bag_prompt_logits": bag_prompt_logits, "inst_attn": inst_attn, "inst_text_features": inst_text_features}
 
         else:
-            return {"cls_logits": cls_logits, "inst_attn": inst_attn}
+            return {"cls_logits": cls_logits, "inst_attn": inst_attn, "inst_text_features": inst_text_features}
 
 if __name__ == '__main__':
     import yaml

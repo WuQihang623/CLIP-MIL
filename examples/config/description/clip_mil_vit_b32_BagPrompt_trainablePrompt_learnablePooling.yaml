@@ -25,7 +25,7 @@ model:
       - "blank areas with no apparent cells or staining"
       - "lack of tissue structure, with evenly stained light-colored background"
       - "large areas of blank space, lacking cells and tissue, with very low staining intensity"
-  bag_template: null
+  bag_template: "a immunohistochemical pathological image of "
   bag_texts:
     "TPS score is 0%":
       - "the tumor cells do not express PD-L1 at all, with no staining observed in the tumor region"
@@ -57,8 +57,8 @@ model:
       - "within the tumor area, some cells exhibit moderate brown staining intensity"
     "High PD-L1 expression":
       - "in the tumor region, the majority of cells display strong brown staining, with stained cells occupying a substantial portion of the field of view"
-  use_CoOP: false
-  trainable_prompt: false
+  use_CoOP: true
+  trainable_prompt: true
   learnabel_pooling: false
   device: cuda
 clinical_path: "/home/auwqh/dataset/PDL1/meta_data/excel_data/PDL1_score_clinical.xlsx"

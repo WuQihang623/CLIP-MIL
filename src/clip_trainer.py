@@ -28,7 +28,9 @@ def train_one_epoch(model, loader, loss_fn, optimizer, scheduler, epoch, device,
             preds_cls=predictions["cls_logits"],
             targets_cls=targets,
             preds_bag=predictions.get("bag_prompt_logits"),
-            targets_bag=clinical_scores)
+            targets_bag=clinical_scores,
+            inst_text_features = predictions["inst_text_features"]
+        )
         loss = loss_dict["loss"]
         loss.backward()
 
@@ -49,7 +51,7 @@ def train_one_epoch(model, loader, loss_fn, optimizer, scheduler, epoch, device,
     total_err = total_err / len(loader.dataset)
     string = f"Epoch {epoch} | Train | Acc: {1 - total_err:.4f} "
     for k, v in total_loss.items():
-        string += f"| {k}: {v:.3f}"
+        string += f"| {k}: {v:.3f} "
     logger.info(string)
     return total_loss["loss"], 1 - total_err
 
@@ -72,7 +74,9 @@ def test_one_epoch(model, loader, loss_fn, device):
             preds_cls=predictions["cls_logits"],
             targets_cls=targets,
             preds_bag=predictions.get("bag_prompt_logits"),
-            targets_bag=clinical_scores)
+            targets_bag=clinical_scores,
+            inst_text_features=predictions["inst_text_features"]
+        )
 
         for k, v in loss_dict.items():
             if k not in total_loss:

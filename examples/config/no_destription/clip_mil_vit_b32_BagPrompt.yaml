@@ -9,7 +9,7 @@ model:
     "stroma region": null
     "necrotic region": null
     "background": null
-  bag_template: null
+  bag_template: "a immunohistochemical pathological image of "
   bag_texts:
     "TPS score is 0%": null
     "TPS score is 1%": null

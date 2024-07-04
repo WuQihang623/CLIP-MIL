@@ -28,8 +28,8 @@ model:
     "Low PD-L1 expression": null
     "High PD-L1 expression": null
   use_CoOP: true
-  trainable_prompt: false
-  learnabel_pooling: false
+  trainable_prompt: true
+  learnabel_pooling: true
   device: cuda
 clinical_path: "/home/auwqh/dataset/PDL1/meta_data/excel_data/PDL1_score_clinical.xlsx"
 batch_size: 1
@@ -45,4 +45,5 @@ n_epochs: 100
 seed: 2022
 early_stop: 20
 lambda_kl: 3
-instance_text_loss: false
+instance_text_loss: true
+temperature: 0.07
