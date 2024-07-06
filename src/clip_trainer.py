@@ -27,9 +27,8 @@ def train_one_epoch(model, loader, loss_fn, optimizer, scheduler, epoch, device,
         loss_dict = loss_fn(
             preds_cls=predictions["cls_logits"],
             targets_cls=targets,
-            preds_bag=predictions.get("bag_prompt_logits"),
+            preds_bag=predictions.get("bag_logits"),
             targets_bag=clinical_scores,
-            inst_text_features = predictions["inst_text_features"]
         )
         loss = loss_dict["loss"]
         loss.backward()
@@ -75,7 +74,7 @@ def test_one_epoch(model, loader, loss_fn, device):
             targets_cls=targets,
             preds_bag=predictions.get("bag_prompt_logits"),
             targets_bag=clinical_scores,
-            inst_text_features=predictions["inst_text_features"]
+            inst_text_features=predictions.get("inst_text_features")
         )
 
         for k, v in loss_dict.items():

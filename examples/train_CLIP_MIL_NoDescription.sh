@@ -18,20 +18,12 @@ export PYTHONPATH=./:$PYTHONPATH
 wz=1
 cd ../
 
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/no_destription/clip_mil_vit_b32.yaml" \
-#                              --log_name "clip_mil_vit_b32_NoDescrip"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/no_destription/clip_mil_vit_b32_BagPrompt.yaml" \
-#                              --log_name "clip_mil_vit_b32_NoDescrip_BagPrompt"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/no_destription/clip_mil_vit_b32_BagPrompt_CoOP.yaml" \
-#                              --log_name "clip_mil_vit_b32_NoDescrip_BagPrompt_CoOP"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/no_destription/clip_mil_vit_b32_BagPrompt_trainablePrompt.yaml" \
-#                              --log_name "clip_mil_vit_b32_NoDescrip_BagPrompt_trainablePrompt"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/no_destription/clip_mil_vit_b32_BagPrompt_trainablePrompt_learnablePooling.yaml" \
-#                              --log_name "clip_mil_vit_b32_NoDescrip_BagPrompt_trainablePrompt_learnabelPooling"
 
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/no_destription/clip_mil_vit_b32_BagPrompt_trainablePrompt_learnablePooling_contrast.yaml" \
-                              --log_name "clip_mil_vit_b32_NoDescrip_BagPrompt_trainablePrompt_learnabelPooling_contrast"
+#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/no_destription/clip_promptPooling_CoOP.yaml" \
+#                              --log_name "clip_NoDescrip_promptPooling_CoOP"
+
+srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/no_destription/clip_promptPooling_CoOP_learnable.yaml" \
+                              --log_name "clip_NoDescrip_promptPooling_CoOP_learnable"
+
+srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config/no_destription/clip_promptPooling_CoOP_learnable_clsPrompt.yaml" \
+                              --log_name "clip_NoDescrip_promptPooling_CoOP_learnable_clsPrompt"

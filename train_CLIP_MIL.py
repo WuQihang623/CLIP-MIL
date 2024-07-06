@@ -97,7 +97,7 @@ def main(config):
         best_f1 = 0
         patience = config["early_stop"]
         now_patience = 0
-        loss_fn = MIL_Loss(use_kl=True if model.bag_promptor is not None else False, lambda_kl=config["lambda_kl"], instance_text_loss=config["instance_text_loss"], temperature=config["temperature"])
+        loss_fn = MIL_Loss(use_kl=model.use_bag_prompt, lambda_kl=config["lambda_kl"])
         for epoch in range(config["n_epochs"]):
             train_loss, train_err = train_one_epoch(
                 model, train_loader, loss_fn, optimizer, scheduler, epoch, config["model"]["device"], logger

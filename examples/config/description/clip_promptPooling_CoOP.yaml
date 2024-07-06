@@ -1,6 +1,16 @@
 model:
   feat_dim: 512
+  num_classes: 3
   text_enc_name: ViT-B/32
+  pooling_method: promptguide
+  use_bag_prompt: false
+  use_cls_prompt: false
+  use_CoOP: true
+  # prompt guide param, pooling_method: promptguide
+  trainable_prompt: true
+  learnable_pooling: false
+  device: cuda
+
   instance_template: "an immunohistochemical pathological image of "
   instance_texts:
     "tumor region":
@@ -25,7 +35,7 @@ model:
       - "blank areas with no apparent cells or staining"
       - "lack of tissue structure, with evenly stained light-colored background"
       - "large areas of blank space, lacking cells and tissue, with very low staining intensity"
-  bag_template: "a immunohistochemical pathological image of "
+  bag_template: "an immunohistochemical pathological image of "
   bag_texts:
     "TPS score is 0%":
       - "the tumor cells do not express PD-L1 at all, with no staining observed in the tumor region"
@@ -49,18 +59,15 @@ model:
       - "approximately 70% of the cells exhibit strong brown staining, indicative of widespread PD-L1 expression"
     "TPS score is 80%":
       - "approximately 80% of the tumor cells display dense brown staining, indicative of extensive PD-L1 expression, nearly encompassing the entire tumor area"
-  cls_template: "a immunohistochemical pathological image of "
+  cls_template: "an immunohistochemical pathological image of "
   cls_texts:
     "PD-L1 negative":
       - "the tumor cells completely lack PD-L1 expression, with virtually no staining observed throughout the entire tumor region"
-    "Low PD-L1 expression":
+    "low PD-L1 expression":
       - "within the tumor area, some cells exhibit moderate brown staining intensity"
-    "High PD-L1 expression":
+    "high PD-L1 expression":
       - "in the tumor region, the majority of cells display strong brown staining, with stained cells occupying a substantial portion of the field of view"
-  use_CoOP: true
-  trainable_prompt: false
-  learnabel_pooling: false
-  device: cuda
+
 clinical_path: "/home/auwqh/dataset/PDL1/meta_data/excel_data/PDL1_score_clinical.xlsx"
 batch_size: 1
 num_workers: 4
@@ -74,6 +81,4 @@ scheduler:
 n_epochs: 100
 seed: 2022
 early_stop: 20
-lambda_kl: 3
-instance_text_loss: false
-temperature: 0.07
+lambda_kl: 1
