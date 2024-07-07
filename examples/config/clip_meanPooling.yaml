@@ -7,8 +7,7 @@ model:
   use_cls_prompt: false
   use_CoOP: false
   # prompt guide param, pooling_method: promptguide
-  trainable_prompt: false
-  learnable_pooling: false
+  pooling_strategy: first_token
   device: cuda
 
   bag_texts:

@@ -2,16 +2,15 @@ model:
   feat_dim: 512
   num_classes: 3
   text_enc_name: ViT-B/32
-  pooling_method: promptguide
+  pooling_method: similarity
   use_bag_prompt: false
   use_cls_prompt: false
   use_CoOP: false
   # prompt guide param, pooling_method: promptguide
-  trainable_prompt: false
-  learnable_pooling: false
+  pooling_strategy: first_token
   device: cuda
 
-  instance_template: "an immunohistochemical pathological image of "
+  instance_template: "an immunohistochemical pathological image of"
   instance_texts:
     "tumor region": null
     "normal epithelial region": null
@@ -19,7 +18,7 @@ model:
     "stroma region": null
     "necrotic region": null
     "background": null
-  bag_template: "an immunohistochemical pathological image of "
+  bag_template: "an immunohistochemical pathological image of"
   bag_texts:
     "TPS score is 0%": null
     "TPS score is 1%": null
@@ -32,7 +31,7 @@ model:
     "TPS score is 60%": null
     "TPS score is 70%": null
     "TPS score is 80%": null
-  cls_template: "an immunohistochemical pathological image of "
+  cls_template: "an immunohistochemical pathological image of"
   cls_texts:
     "PD-L1 negative": null
     "low PD-L1 expression": null

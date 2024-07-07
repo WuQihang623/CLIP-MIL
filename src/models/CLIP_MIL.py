@@ -2,6 +2,7 @@ import torch
 import random
 import torch.nn as nn
 import numpy as np
+from src.models.utils import *
 
 from src import clip
 
@@ -14,7 +15,6 @@ class PromptEmbedding(nn.Module):
             template: str,
             texts: dict,
             use_CoOP: bool,
-            trainable_prompt: bool,
             device: str,
     ):
         super(PromptEmbedding, self).__init__()
@@ -39,105 +39,133 @@ class PromptEmbedding(nn.Module):
         self.context_length = context_length
         self.tokenizer = clip.tokenize
         self.token_embedding = token_embedding
-
         self.use_CoOP = use_CoOP
-        self.trainable = trainable_prompt
-
-        if self.use_CoOP is False:
-            assert self.trainable is False
+        self.template = template
 
         if self.use_CoOP:
-            if trainable_prompt:
-                prompts = []
-                for class_name, descriptions in texts.items():
-                    if descriptions is None:
-                        prompts.append(f"{class_name}.")
-                    else:
-                        prompts.append(f"{class_name}, which shows {random.choice(descriptions)}")
-                prompts = self.tokenizer(prompts).to(self.device)
-                self.eos_postion = prompts.argmax(dim=-1)
-                with torch.no_grad():
-                    embedding = self.token_embedding(prompts)
-                self.ctx_embedding = nn.Parameter(embedding)
-            else:
-                prompt = self.tokenizer([template for _ in range(self.n_classes)]).to(self.device)
-                with torch.no_grad():
-                    embedding = self.token_embedding(prompt)
+            prompts = []
+            for class_name, descriptions in texts.items():
+                if descriptions is None:
+                    prompts.append(f"{template} {class_name}.")
+                else:
+                    prompts.append(f"{template} {class_name}, which shows {random.choice(descriptions)}")
+            prompts = self.tokenizer(prompts).to(self.device)
+            self.eos_postion = prompts.argmax(dim=-1)
+            with torch.no_grad():
+                embedding = self.token_embedding(prompts)
 
-                self.num_learnable_tokens = prompt.argmax(dim=-1)[0] - 1 # take out SOS
-                ctx_embedding = embedding[:, 1: self.num_learnable_tokens + 1, :]
-                self.ctx_embedding = nn.Parameter(ctx_embedding)  # to be optimized
+            n_ctx = len(template.split(" "))
+            self.register_buffer("token_prefix", embedding[:, :1, :])  # SOS
+            self.register_buffer("token_suffix", embedding[:, 1 + n_ctx:, :])  # CLS, EOS
+            self.ctx_embedding = nn.Parameter(embedding[0, 1: 1 + n_ctx, :])
+
 
     def forward_fixed(self):
-        suffix_text = []
+        prompts = []
         for class_name, descriptions in self.texts.items():
             if descriptions is None:
-                suffix_text.append(f"{class_name}.")
+                prompts.append(f"{self.template} {class_name}.")
             else:
-                suffix_text.append(f"{class_name}, which shows {random.choice(descriptions)}")
-        prompt = self.tokenizer(suffix_text, context_length=self.context_length).to(self.device)
+                prompts.append(f"{self.template} {class_name}, which shows {random.choice(descriptions)}")
+        prompts = self.tokenizer(prompts, context_length=self.context_length).to(self.device)
         with torch.no_grad():
-            embedding = self.token_embedding(prompt)
-        eos_position = prompt.argmax(dim=-1)
+            embedding = self.token_embedding(prompts)
+        eos_position = prompts.argmax(dim=-1)
         return embedding, eos_position
 
-
-    def forward_trainable(self):
-        ctx_embedding = self.ctx_embedding
-        return ctx_embedding, self.eos_postion
-
-    def forward_untrainable(self):
-        suffix_text = []
-        for class_name, descriptions in self.texts.items():
-            if descriptions is None:
-                suffix_text.append(f"{class_name}.")
-            else:
-                suffix_text.append(f"{class_name}, which shows {random.choice(descriptions)}")
-        prompt = self.tokenizer(suffix_text, context_length=self.context_length - self.num_learnable_tokens).to(self.device)
-        with torch.no_grad():
-            embedding = self.token_embedding(prompt)
-        prefix_token = embedding[:, :1, :] # SOS
-        suffix_token = embedding[:, 1:, :] # class token and EOS
-
+    def forward_CoOP(self):
         ctx = self.ctx_embedding
+        if ctx.dim() == 2:
+            ctx = ctx.unsqueeze(0).expand(self.n_classes, -1, -1)
 
-        token = torch.cat([prefix_token, ctx, suffix_token], dim=1)
+        prefix = self.token_prefix
+        suffix = self.token_suffix
 
-        eos_position = self.num_learnable_tokens + prompt.argmax(dim=-1)
-        return token, eos_position
+        prompts = torch.cat([
+            prefix,
+            ctx,
+            suffix
+        ], dim=1)
+        return prompts, self.eos_postion
 
     def forward(self):
         if self.use_CoOP:
-            if self.trainable:
-                return self.forward_trainable()
-            else:
-                return self.forward_untrainable()
+            return self.forward_CoOP()
         else:
             return self.forward_fixed()
 
-class Adapter(nn.Module):
-    def __init__(self, feat_dim, hidden_dim=128, ratio=0.2):
-        super(Adapter, self).__init__()
-        self.fc = nn.Sequential(
-            nn.Linear(feat_dim, hidden_dim, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim, feat_dim, bias=False),
-            nn.ReLU(inplace=True)
-        )
-        self.ratio = ratio
 
-    def forward(self, x):
-        return self.ratio * self.fc(x) + (1 - self.ratio) * x
 
-class PromptGuidePooling(nn.Module):
-    def __init__(self, num_prototype: int, learnable_pooling: bool):
-        super(PromptGuidePooling, self).__init__()
-        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        weights = torch.zeros((1, num_prototype))
-        weights[0, 0] = 1
-        self.prototype_weight = nn.Parameter(weights)
-        if learnable_pooling is False:
+class GroupPooling(nn.Module):
+    def __init__(
+            self,
+            feat_dim: int,
+            num_prototype: int,
+            pooling_strategy: str,
+            norm_layer: nn.Module=nn.LayerNorm):
+        super(GroupPooling, self).__init__()
+        self.pooling_strategy = pooling_strategy
+
+        if pooling_strategy == "first_token":
+            weights = torch.zeros((1, num_prototype))
+            weights[0, 0] = 1
+            self.prototype_weight = nn.Parameter(weights)
             self.prototype_weight.requires_grad = False
+        elif pooling_strategy == "mean":
+            weights = torch.ones((1, num_prototype))
+            self.prototype_weight = nn.Parameter(weights)
+            self.prototype_weight.requires_grad = False
+        else:
+            raise ValueError("Invalid pooling strategy")
+        self.pre_assign_attention = CrossAttnBlock(dim=feat_dim, num_heads=1)
+        self.assign_attention = AssignAttention(dim=feat_dim, num_heads=1)
+        self.image_norm = norm_layer(feat_dim)
+        self.text_norm = norm_layer(feat_dim)
+        self.mlp = Mlp(in_features=feat_dim, hidden_features=feat_dim // 4, out_features=feat_dim)
+
+    def forward(self, image_features, text_features):
+        if image_features.dim() == 2:
+            image_features = image_features.unsqueeze(0)
+        if text_features.dim() == 2:
+            text_features = text_features.unsqueeze(0)
+
+        image_features = self.image_norm(image_features)
+        text_features = self.text_norm(text_features)
+
+        text_features = self.pre_assign_attention(text_features, image_features)
+        new_image_features, attn = self.assign_attention(text_features, image_features)
+
+        new_image_features += text_features
+
+        new_image_features = self.mlp(new_image_features)
+
+        prototype_weight = self.prototype_weight / torch.sum(self.prototype_weight)
+        new_image_features = new_image_features.squeeze(0)
+        new_image_features = prototype_weight @ new_image_features
+        return new_image_features, attn
+
+
+class SimilarityPooling(nn.Module):
+    def __init__(self, num_prototype: int, pooling_strategy: str, feat_dim: int):
+        super(SimilarityPooling, self).__init__()
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.pooling_strategy = pooling_strategy
+
+        if pooling_strategy == "first_token":
+            weights = torch.zeros((1, num_prototype))
+            weights[0, 0] = 1
+            self.prototype_weight = nn.Parameter(weights)
+            self.prototype_weight.requires_grad = False
+        elif pooling_strategy == "attention_gate":
+            self.attention = Attn_Net_Gated(feat_dim, feat_dim, dropout=True)
+            self.rho = nn.Sequential(*[
+                nn.Linear(feat_dim, feat_dim),
+                nn.ReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(feat_dim, feat_dim)
+            ])
+        else:
+            raise ValueError("Unknown pooling strategy: {}".format(pooling_strategy))
 
     def forward(self, image_features, text_features):
         image_features = image_features.squeeze(0)
@@ -153,62 +181,16 @@ class PromptGuidePooling(nn.Module):
         # image_features = weights.T @ image_features / torch.tensor(image_features.shape[0], device=image_features.device)
         image_features = weights.T @ image_features / torch.sqrt(torch.tensor(image_features.shape[0], device=image_features.device))
 
-        prototype_weight = self.prototype_weight / torch.sum(self.prototype_weight)
-        image_features = prototype_weight @ image_features
+        if self.pooling_strategy == "attention_gate":
+            image_features = self.attention(image_features.squeeze(0))
+            image_features = self.rho(image_features)
+        elif self.pooling_strategy == "first_token":
+            prototype_weight = self.prototype_weight / torch.sum(self.prototype_weight)
+            image_features = prototype_weight @ image_features
+        else:
+            raise ValueError("Unknown pooling strategy: {}".format(self.pooling_strategy))
         return image_features, weights
 
-
-class PromptAttentionPooling(nn.Module):
-    def __init__(self, feat_dim, num_heads, num_prototype: int, learnable_pooling: bool):
-        super(PromptAttentionPooling, self).__init__()
-        assert feat_dim % num_heads == 0
-
-        self.attention = nn.MultiheadAttention(feat_dim, num_heads, dropout=0.1, batch_first=True)
-
-        self.out_proj = nn.Linear(feat_dim, feat_dim)
-
-        weights = torch.zeros((1, num_prototype))
-        weights[0, 0] = 1
-        self.prototype_weight = nn.Parameter(weights)
-        if learnable_pooling is False:
-            self.prototype_weight.requires_grad = False
-
-    def forward(self, image_features, text_features):
-        if image_features.dim() == 2:
-            image_features = image_features.unsqueeze(0)
-        if text_features.dim() == 2:
-            text_features = text_features.unsqueeze(0)
-
-        attn_output, attn = self.attention(text_features, image_features, image_features)
-
-        attn_output = self.out_proj(attn_output).squeeze(0)
-
-        prototype_weight = self.prototype_weight / torch.sum(self.prototype_weight)
-        attn_output = prototype_weight @ attn_output
-        return attn_output, attn
-
-class AttentionPooling(nn.Module):
-    def __init__(self, feat_dim):
-        super(AttentionPooling, self).__init__()
-        self.L = feat_dim
-        self.D = 128
-        self.K = 1
-
-        self.attention = nn.Sequential(
-            nn.Linear(self.L, self.D),
-            nn.BatchNorm1d(self.D),
-            nn.Tanh(),
-            nn.Linear(self.D, self.K)
-        )
-
-    def forward(self, image_features):
-        image_features = image_features.squeeze(0)
-        attn = self.attention(image_features)
-        attn = torch.transpose(attn, 1, 0)
-        attn = torch.softmax(attn, dim=1)
-
-        image_features = torch.mm(attn, image_features)
-        return image_features
 
 class MeanPooling(nn.Module):
     def __init__(self):
@@ -227,16 +209,15 @@ class CLIP_MIL(nn.Module):
             use_bag_prompt: bool,
             use_cls_prompt: bool,
             use_CoOP: bool,
-            trainable_prompt: bool,
-            learnable_pooling: bool,
+            pooling_strategy: str,
             device: str,
             **kwargs
     ):
         super(CLIP_MIL, self).__init__()
-        self.device = device
+        self.device = device if torch.cuda.is_available() else "cpu"
         self.feat_dim = feat_dim
         self.adaptor = Adapter(feat_dim, hidden_dim=feat_dim//4, ratio=0.2)
-        self.text_encoder = clip.load_text_encoder(name=text_enc_name, device=device)
+        self.text_encoder = clip.load_text_encoder(name=text_enc_name, device=self.device)
 
         self.pooling_method = pooling_method
         self.use_bag_prompt = use_bag_prompt
@@ -245,11 +226,11 @@ class CLIP_MIL(nn.Module):
         # set pooling method
         if pooling_method == "attention":
             assert self.use_cls_prompt is False and self.use_bag_prompt is False
-            self.instance_pooling = AttentionPooling(feat_dim)
+            self.instance_pooling = Attn_Net_Gated(feat_dim, feat_dim, dropout=True)
         elif pooling_method == "mean":
             assert self.use_cls_prompt is False and self.use_bag_prompt is False
             self.instance_pooling = MeanPooling()
-        elif pooling_method == "promptguide" or pooling_method == "promptattention":
+        elif pooling_method == "similarity" or pooling_method == "group":
             instance_template = kwargs["instance_template"]
             instance_texts = kwargs["instance_texts"]
             assert instance_template is not None and instance_texts is not None
@@ -259,19 +240,21 @@ class CLIP_MIL(nn.Module):
                 template=instance_template,
                 texts=instance_texts,
                 use_CoOP=use_CoOP,
-                trainable_prompt=trainable_prompt,
-                device=device,
+                device=self.device,
             )
-            if pooling_method == "promptguide":
-                self.instance_pooling = PromptGuidePooling(
-                    num_prototype=len(instance_texts), learnable_pooling=learnable_pooling
+            if pooling_method == "similarity":
+                self.instance_pooling = SimilarityPooling(
+                    num_prototype=len(instance_texts), pooling_strategy=pooling_strategy, feat_dim=feat_dim
                 )
-            else:
-                self.instance_pooling = PromptAttentionPooling(
-                    feat_dim=feat_dim, num_heads=8, num_prototype=len(instance_texts), learnable_pooling=learnable_pooling
+            elif pooling_method == "group":
+                self.instance_pooling = GroupPooling(
+                    num_prototype=len(instance_texts), pooling_strategy=pooling_strategy, feat_dim=feat_dim
                 )
+
         else:
             raise NotImplementedError(f"Pooling method {pooling_method} is not implemented")
+
+        self.wsi_mlp = Mlp(in_features=feat_dim, hidden_features=feat_dim // 4, out_features=feat_dim)
 
         if use_bag_prompt:
             bag_template = kwargs["bag_template"]
@@ -283,8 +266,7 @@ class CLIP_MIL(nn.Module):
                 template=bag_template,
                 texts=bag_texts,
                 use_CoOP=use_CoOP,
-                trainable_prompt=trainable_prompt,
-                device=device,
+                device=self.device,
             )
             self.bag_prompt_logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
@@ -298,8 +280,7 @@ class CLIP_MIL(nn.Module):
                 template=cls_template,
                 texts=cls_texts,
                 use_CoOP=use_CoOP,
-                trainable_prompt=trainable_prompt,
-                device=device,
+                device=self.device,
             )
             self.cls_prompt_logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
@@ -319,13 +300,15 @@ class CLIP_MIL(nn.Module):
         output_dict = {}
         if self.pooling_method == "attention" or self.pooling_method == "mean":
             wsi_feature = self.instance_pooling(image_features)
-        elif self.pooling_method == "promptguide" or self.pooling_method == "promptattention":
+        elif self.pooling_method == "similarity" or self.pooling_method == "group":
             instance_text_embedding, instance_eos_position = self.instance_token_embedding()
             instance_text_features = self.text_encoder(instance_text_embedding, instance_eos_position)
             wsi_feature, instance_attn = self.instance_pooling(image_features, instance_text_features)
             output_dict["instance_attention"] = instance_attn
         else:
             raise NotImplementedError(f"Pooling method {self.pooling_method} is not implemented")
+
+        wsi_feature = self.wsi_mlp(wsi_feature)
 
         if self.use_bag_prompt:
             bag_text_features, bag_eos_position = self.bag_token_embedding()
@@ -344,17 +327,33 @@ class CLIP_MIL(nn.Module):
         return output_dict
 
 if __name__ == '__main__':
-    # import yaml
-    # with open("/home/auwqh/code/CLIP-MIL/save_weights/clip_mil_vit_b32_meanPooling/config.yaml", 'r') as f:
-    #     config = yaml.load(f, Loader=yaml.FullLoader)
-    #     f.close()
-    # model = CLIP_MIL(
-    #     **config["model"]
-    # )
-    # logits, inst_attn = model(torch.randn(1, 1024, 512))
-    # print(logits.shape, inst_attn.shape)
+    import yaml
+    with open("/home/auwqh/code/CLIP-MIL/examples/config/description/clip_group_CoOP.yaml", 'r') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+        f.close()
+    model = CLIP_MIL(
+        **config["model"]
+    )
+    output = model(torch.randn(1, 1024, 512))
+    for k, v in output.items():
+        if v is not None:
+            print(k, v.shape)
+        else:
+            print(k)
 
-    model = PromptAttentionPooling(feat_dim=512, num_heads=8, num_prototype=5, learnable_pooling=False)
-    x = torch.randn((1, 1024, 512))
-    y = torch.randn((5, 512))
-    z, _ = model(x, y)
+    # clip_model = clip.load_text_encoder(name="ViT-B/32", device="cpu")
+    # prompt_embedding = PromptEmbedding(
+    #         token_embedding=clip_model.token_embedding,
+    #         context_length=77,
+    #         template="a photo of a",
+    #         texts={"cat": None, "dog": None},
+    #         use_CoOP=True,
+    #         device="cpu",
+    #     )
+    # prompts = prompt_embedding()
+
+    # model = GroupPooling(feat_dim=512, num_prototype=5, pooling_strategy="mean")
+    # text_embedding = torch.randn((1, 5, 512))
+    # image_embedding = torch.randn((1, 1024, 512))
+    # out = model(image_embedding, text_embedding)
+    # print(out.shape)

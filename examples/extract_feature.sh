@@ -3,7 +3,7 @@
 #SBATCH --output=./log/output_%x_%j.log      # 输出文件名，%j代表作业ID
 #SBATCH --error=./log/error_%x_%j.log        # 错误文件名
 #SBATCH -p RTX3090  ## 指定分区
-#SBATCH -w gpu05  ## 节点id
+#SBATCH -w gpu04  ## 节点id
 #SBATCH -N 1        ## 使用节点数
 #SBATCH -n 1        ## 任务数
 #SBATCH --gres=gpu:1 ##申请gpu数量
