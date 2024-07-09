@@ -180,18 +180,16 @@ class Attn_Net_Gated(nn.Module):
 
 
 class Adapter(nn.Module):
-    def __init__(self, feat_dim, hidden_dim=128, ratio=0.2):
+    def __init__(self, feat_dim, hidden_dim=128):
         super(Adapter, self).__init__()
         self.fc = nn.Sequential(
             nn.Linear(feat_dim, hidden_dim, bias=False),
-            nn.ReLU(inplace=True),
+            nn.GELU(),
             nn.Linear(hidden_dim, feat_dim, bias=False),
-            nn.ReLU(inplace=True)
         )
-        self.ratio = ratio
 
     def forward(self, x):
-        return self.ratio * self.fc(x) + (1 - self.ratio) * x
+        return self.fc(x) + x
 
 
 def hard_softmax(logits, dim):
@@ -315,3 +313,27 @@ class AssignAttention(nn.Module):
         out = self.proj(out)
         out = self.proj_drop(out)
         return out, attn_dict
+
+
+class QuestionTransformerBlock(nn.Module):
+    def __init__(self, feat_dim, num_head, dropout=0.1):
+        super(QuestionTransformerBlock, self).__init__()
+        self.attention = nn.MultiheadAttention(embed_dim=feat_dim, num_heads=num_head, batch_first=True)
+        self.ffn = Mlp(in_features=feat_dim, hidden_features=feat_dim // 4, out_features=feat_dim)
+        self.layernorm = nn.LayerNorm(feat_dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def froward(self, question, image_features):
+        image_features, _ = self.attention(question, image_features, image_features)
+        image_features = image_features[: ,:1, :].squeeze(0)
+        ffn_output = self.ffn(image_features)
+        image_features = self.layernorm(image_features + self.dropout(ffn_output))
+        return image_features
+
+
+
+if __name__ == '__main__':
+    x = torch.randn((1, 1024, 512))
+    model = nn.Dropout1d(0.5)
+    y = model(x)
+    print(x.shape, y.shape)

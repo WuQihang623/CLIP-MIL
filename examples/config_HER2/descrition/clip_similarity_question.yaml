@@ -1,0 +1,61 @@
+model:
+  feat_dim: 512
+  num_classes: 4
+  text_enc_name: ViT-B/32
+  pooling_method: similarity
+  use_bag_prompt: false
+  use_cls_prompt: false
+  use_CoOP: false
+  # prompt guide param, pooling_method: promptguide
+  pooling_strategy: question
+  device: cuda
+
+  instance_template: "an immunohistochemical pathological image of"
+  instance_texts:
+    "tumor region":
+      - "irregularly arranged cells with high density, exhibiting variable sizes and morphologies of cell nuclei"
+      - "cells are densely packed with tight arrangements, exhibiting invasive characteristics typical of tumor tissue"
+      - "irregular borders and deformed cell nuclei"
+      - "nuclei are abnormally large and densely distributed"
+    "normal epithelial region":
+      - "cells are arranged in an orderly manner with uniform nucleus size"
+      - "monomorphic nuclei, arranged in a compact manner"
+    "immune cell region":
+      - "small and round cells"
+      - "clusters of immune cells"
+    "stroma region":
+      - "fibrous structures, lightly stained, with sparse cell distribution"
+      - "broad stromal regions with sparse cell population, uniformly and lightly stained"
+    "necrotic region":
+      - "cell structures are blurry, with uneven staining, indicating necrotic features"
+      - "nuclei are fragmented, and staining appears as mottled, vacuolated patterns"
+    "background":
+      - "acellular or devoid of tissue, lightly stained, serving as background"
+      - "blank areas with no apparent cells or staining"
+      - "lack of tissue structure, with evenly stained light-colored background"
+      - "large areas of blank space, lacking cells and tissue, with very low staining intensity"
+  cls_template: "an immunohistochemical pathological image of"
+  cls_texts:
+    "HER2 Score 0":
+      - "no significant HER2 expression; no or faint staining signal on cell membranes; cell outlines are unclear"
+    "HER2 Score 1":
+      - "weak HER2 expression; discontinuous or partial staining on cell membranes; staining signal is weak"
+    "HER2 Score 2":
+      - "moderate HER2 expression; continuous but incomplete staining on cell membranes; some areas show strong or weak staining"
+    "HER2 Score 3":
+      - "strong HER2 expression; intense and continuous staining on cell membranes; almost all cells show distinct staining signals"
+
+clinical_path: null
+batch_size: 1
+num_workers: 4
+lr: 0.0001
+scheduler:
+  warmup_steps: 200
+  base_lr: 1.0e-6
+  max_lr: 1.0e-4
+  T_max: 200
+  eta_min: 1.0e-7
+n_epochs: 100
+seed: 1
+early_stop: 20
+lambda_kl: 1

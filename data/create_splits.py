@@ -1,12 +1,12 @@
 """
-    Split the PD-L1 dataset into 5 folds.
+    Split the PD-L1 dataset into 5 fold
 """
 
 import os
 
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 
 
 def split_data(patient_ids, labels, seed, save_dir):
@@ -20,9 +20,9 @@ def split_data(patient_ids, labels, seed, save_dir):
         :return:
     """
     os.makedirs(save_dir, exist_ok=True)
-    k_fold = KFold(n_splits=5, shuffle=True, random_state=seed)
+    k_fold = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)
     folds = []
-    for fold_idx, (train_idx, val_idx) in enumerate(k_fold.split(patient_ids)):
+    for fold_idx, (train_idx, val_idx) in enumerate(k_fold.split(patient_ids, labels)):
         folds.append(val_idx)
 
     for i in range(5):
@@ -45,6 +45,12 @@ def split_data(patient_ids, labels, seed, save_dir):
         for j, id in enumerate(test_ids):
             df.loc[j, "test"] = patient_ids[id]
             df.loc[j, "test_label"] = labels[id]
+
+        print(f"Fold {i}:")
+        print("train label:", df["train_label"].value_counts())
+        print("val label:", df["val_label"].value_counts())
+        print("test_label:", df["test_label"].value_counts())
+
         df.to_csv(os.path.join(save_dir, f"fold_{i}.csv"))
 
 
@@ -55,12 +61,23 @@ def convert_score_to_label(score: np.ndarray):
     label[score>=50] = 2
     return label
 
+### PDL1
+# if __name__ == '__main__':
+#     csv_path = "/home/auwqh/dataset/PDL1/meta_data/excel_data/PDL1_score_clinical.xlsx"
+#     save_dir = "/home/auwqh/code/CLIP-MIL/data/PDL1_fold"
+#     df = pd.read_excel(csv_path)
+#     patient_ids = df["检查号"].tolist()
+#     scores = df["诊断结果"].to_numpy(np.uint8)
+#     labels = convert_score_to_label(scores)
+#     split_data(patient_ids, labels, 2024, save_dir)
+
+
+### HER2
 if __name__ == '__main__':
-    csv_path = "/home/auwqh/dataset/PDL1/meta_data/excel_data/PDL1_score_clinical.xlsx"
-    save_dir = "/home/auwqh/code/CLIP-MIL/data/PDL1_fold"
+    csv_path = "/home/auwqh/code/CLIP-MIL/data/HER2_score_clinical.xlsx"
+    save_dir = "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
     df = pd.read_excel(csv_path)
     patient_ids = df["检查号"].tolist()
-    scores = df["诊断结果"].to_numpy(np.uint8)
-    labels = convert_score_to_label(scores)
-    print(labels)
+    labels = df["average"].tolist()
     split_data(patient_ids, labels, 2024, save_dir)
+

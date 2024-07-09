@@ -1,6 +1,6 @@
 model:
   feat_dim: 512
-  num_classes: 3
+  num_classes: 4
   text_enc_name: ViT-B/32
   pooling_method: group
   use_bag_prompt: false
@@ -18,26 +18,14 @@ model:
     "stroma region": null
     "necrotic region": null
     "background": null
-  bag_template: "an immunohistochemical pathological image of"
-  bag_texts:
-    "TPS score is 0%": null
-    "TPS score is 1%": null
-    "TPS score is 5%": null
-    "TPS score is 10%": null
-    "TPS score is 20%": null
-    "TPS score is 30%": null
-    "TPS score is 40%": null
-    "TPS score is 50%": null
-    "TPS score is 60%": null
-    "TPS score is 70%": null
-    "TPS score is 80%": null
   cls_template: "an immunohistochemical pathological image of"
   cls_texts:
-    "PD-L1 negative": null
-    "low PD-L1 expression": null
-    "high PD-L1 expression": null
+    "HER2 Score 0": null
+    "HER2 Score 1": null
+    "HER2 Score 2": null
+    "HER2 Score 3": null
 
-clinical_path: "/home/auwqh/dataset/PDL1/meta_data/excel_data/PDL1_score_clinical.xlsx"
+clinical_path: null
 batch_size: 1
 num_workers: 4
 lr: 0.0001
@@ -48,8 +36,6 @@ scheduler:
   T_max: 200
   eta_min: 1.0e-7
 n_epochs: 100
-seed: 2022
+seed: 1
 early_stop: 20
 lambda_kl: 1
-instance_text_loss: false
-temperature: 0.07

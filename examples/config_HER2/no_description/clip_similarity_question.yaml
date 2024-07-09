@@ -1,0 +1,41 @@
+model:
+  feat_dim: 512
+  num_classes: 4
+  text_enc_name: ViT-B/32
+  pooling_method: similarity
+  use_bag_prompt: false
+  use_cls_prompt: false
+  use_CoOP: false
+  # prompt guide param, pooling_method: promptguide
+  pooling_strategy: question
+  device: cuda
+
+  instance_template: "an immunohistochemical pathological image of"
+  instance_texts:
+    "tumor region": null
+    "normal epithelial region": null
+    "immune cell region": null
+    "stroma region": null
+    "necrotic region": null
+    "background": null
+  cls_template: "an immunohistochemical pathological image of"
+  cls_texts:
+    "HER2 Score 0": null
+    "HER2 Score 1": null
+    "HER2 Score 2": null
+    "HER2 Score 3": null
+
+clinical_path: null
+batch_size: 1
+num_workers: 4
+lr: 0.0001
+scheduler:
+  warmup_steps: 200
+  base_lr: 1.0e-6
+  max_lr: 1.0e-4
+  T_max: 200
+  eta_min: 1.0e-7
+n_epochs: 100
+seed: 1
+early_stop: 20
+lambda_kl: 1

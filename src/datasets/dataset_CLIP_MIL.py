@@ -51,19 +51,22 @@ class dataset_CLIP_MIL(Dataset):
             patient_ids = df['test'].dropna().tolist()
             label = df['test_label'].dropna().tolist()
 
-        scores = []
-        clinical = pd.read_excel(clinical_path)
-        bag_prompts = list(bag_prompts.keys())
-        bag_prompts_level = [extract_and_convert_score(prompt) for prompt in bag_prompts]
-        for patient_id in patient_ids:
-            score = self.pdl1_score(patient_id, clinical)
-            score_ids = find_nearest_index(bag_prompts_level, score)
-            scores.append(score_ids)
+        if bag_prompts is None:
+            return patient_ids, label, [0 for _ in range(len(patient_ids))]
+        else:
+            scores = []
+            clinical = pd.read_excel(clinical_path)
+            bag_prompts = list(bag_prompts.keys())
+            bag_prompts_level = [extract_and_convert_score(prompt) for prompt in bag_prompts]
+            for patient_id in patient_ids:
+                score = self.pdl1_score(patient_id, clinical)
+                score_ids = find_nearest_index(bag_prompts_level, score)
+                scores.append(score_ids)
 
-        print("-----label and score----")
-        for l, s in zip(label, scores):
-            print(l, s)
-        return patient_ids, label, scores
+            print("-----label and score----")
+            for l, s in zip(label, scores):
+                print(l, s)
+            return patient_ids, label, scores
 
 if __name__ == '__main__':
     csv_path = "/home/auwqh/code/CLIP-MIL/data/PDL1_fold/fold_0.csv"

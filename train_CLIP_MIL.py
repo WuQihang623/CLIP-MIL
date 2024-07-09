@@ -33,9 +33,9 @@ def main(config):
     for k in range(5):
         logger.info(f"-----------Fold {k}-----------")
         csv_path = os.path.join(config["fold_dir"], f"fold_{k}.csv")
-        train_set = dataset_CLIP_MIL(csv_path, config["clinical_path"], config["model"]["bag_texts"], config["feat_dir"], "train")
-        val_set = dataset_CLIP_MIL(csv_path, config["clinical_path"], config["model"]["bag_texts"], config["feat_dir"], "val")
-        test_set = dataset_CLIP_MIL(csv_path, config["clinical_path"], config["model"]["bag_texts"], config["feat_dir"], "test")
+        train_set = dataset_CLIP_MIL(csv_path, config.get("clinical_path"), config["model"].get("bag_texts"), config["feat_dir"], "train")
+        val_set = dataset_CLIP_MIL(csv_path, config.get("clinical_path"), config["model"].get("bag_texts"), config["feat_dir"], "val")
+        test_set = dataset_CLIP_MIL(csv_path, config.get("clinical_path"), config["model"].get("bag_texts"), config["feat_dir"], "test")
 
         class_sample_count = [len([label for label in train_set.label if label == cls]) for cls in set(train_set.label)]
         print("class_sample_count", class_sample_count)
@@ -145,7 +145,7 @@ def main(config):
 def get_args():
     parser = argparse.ArgumentParser(description="Train CLIP MIL model")
     parser.add_argument('--config', type=str, default='/home/auwqh/code/CLIP-MIL/examples/config/clip_mil_vit_b32_no_descrip.yaml', help='Path to config file')
-    parser.add_argument('--save_dir', type=str, default='/home/auwqh/code/CLIP-MIL/save_weights', help='Path to save results')
+    parser.add_argument('--save_dir', type=str, default='/home/auwqh/code/CLIP-MIL/save_weights/PDL1', help='Path to save results')
     parser.add_argument('--log_name', type=str, default='CLIP_MIL_VITB32_v2', help='Name of log file')
     parser.add_argument('--feat_dir', type=str, default="/home/auwqh/dataset/PDL1/meta_data/Testing/patch/clip_ViTB32/pt_files/")
     parser.add_argument('--fold_dir', type=str, default="/home/auwqh/code/CLIP-MIL/data/PDL1_fold")

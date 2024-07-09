@@ -102,7 +102,10 @@ class GroupPooling(nn.Module):
             feat_dim: int,
             num_prototype: int,
             pooling_strategy: str,
-            norm_layer: nn.Module=nn.LayerNorm):
+            norm_layer: nn.Module=nn.LayerNorm,
+            question: torch.Tensor=None,
+            question_grad: bool=False
+    ):
         super(GroupPooling, self).__init__()
         self.pooling_strategy = pooling_strategy
 
@@ -115,13 +118,16 @@ class GroupPooling(nn.Module):
             weights = torch.ones((1, num_prototype))
             self.prototype_weight = nn.Parameter(weights)
             self.prototype_weight.requires_grad = False
+        elif pooling_strategy == "question":
+            self.quetion_embedding = nn.Parameter(question, requires_grad=question_grad)
+            self.question_attention = QuestionTransformerBlock(feat_dim=feat_dim, num_head=4, dropout=0.1)
         else:
             raise ValueError("Invalid pooling strategy")
-        self.pre_assign_attention = CrossAttnBlock(dim=feat_dim, num_heads=1)
+        # self.pre_assign_attention = CrossAttnBlock(dim=feat_dim, num_heads=1)
         self.assign_attention = AssignAttention(dim=feat_dim, num_heads=1)
         self.image_norm = norm_layer(feat_dim)
         self.text_norm = norm_layer(feat_dim)
-        self.mlp = Mlp(in_features=feat_dim, hidden_features=feat_dim // 4, out_features=feat_dim)
+        # self.mlp = Mlp(in_features=feat_dim, hidden_features=feat_dim // 4, out_features=feat_dim)
 
     def forward(self, image_features, text_features):
         if image_features.dim() == 2:
@@ -132,21 +138,27 @@ class GroupPooling(nn.Module):
         image_features = self.image_norm(image_features)
         text_features = self.text_norm(text_features)
 
-        text_features = self.pre_assign_attention(text_features, image_features)
         new_image_features, attn = self.assign_attention(text_features, image_features)
 
-        new_image_features += text_features
-
-        new_image_features = self.mlp(new_image_features)
-
-        prototype_weight = self.prototype_weight / torch.sum(self.prototype_weight)
-        new_image_features = new_image_features.squeeze(0)
-        new_image_features = prototype_weight @ new_image_features
+        if self.pooling_strategy == "mean" or self.pooling_strategy == "first_token":
+            prototype_weight = self.prototype_weight / torch.sum(self.prototype_weight)
+            new_image_features = new_image_features.squeeze(0)
+            new_image_features = prototype_weight @ new_image_features
+        elif self.pooling_strategy == "question":
+            new_image_features = self.question_attention(self.quetion_embedding, new_image_features)
+            new_image_features = new_image_features[:, :1, :].squeeze(0)
         return new_image_features, attn
 
 
 class SimilarityPooling(nn.Module):
-    def __init__(self, num_prototype: int, pooling_strategy: str, feat_dim: int):
+    def __init__(
+            self,
+            num_prototype: int,
+            pooling_strategy: str,
+            feat_dim: int, question:
+            torch.Tensor=None,
+            question_grad: bool = False
+    ):
         super(SimilarityPooling, self).__init__()
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.pooling_strategy = pooling_strategy
@@ -164,6 +176,10 @@ class SimilarityPooling(nn.Module):
                 nn.Dropout(0.1),
                 nn.Linear(feat_dim, feat_dim)
             ])
+        elif pooling_strategy == "question":
+            self.quetion_embedding = nn.Parameter(question, requires_grad=question_grad)
+            self.question_attention = QuestionTransformerBlock(feat_dim=feat_dim, num_head=4, dropout=0.1)
+
         else:
             raise ValueError("Unknown pooling strategy: {}".format(pooling_strategy))
 
@@ -187,6 +203,8 @@ class SimilarityPooling(nn.Module):
         elif self.pooling_strategy == "first_token":
             prototype_weight = self.prototype_weight / torch.sum(self.prototype_weight)
             image_features = prototype_weight @ image_features
+        elif self.pooling_strategy == "question":
+            image_features = self.question_attention(self.quetion_embedding, image_features)
         else:
             raise ValueError("Unknown pooling strategy: {}".format(self.pooling_strategy))
         return image_features, weights
@@ -211,13 +229,17 @@ class CLIP_MIL(nn.Module):
             use_CoOP: bool,
             pooling_strategy: str,
             device: str,
+            drop_instance: float=0.,
+            question_grad=False,
             **kwargs
     ):
         super(CLIP_MIL, self).__init__()
         self.device = device if torch.cuda.is_available() else "cpu"
         self.feat_dim = feat_dim
-        self.adaptor = Adapter(feat_dim, hidden_dim=feat_dim//4, ratio=0.2)
+        self.adaptor = Adapter(feat_dim, hidden_dim=feat_dim//4)
         self.text_encoder = clip.load_text_encoder(name=text_enc_name, device=self.device)
+
+        self.drop_insatnce = nn.Dropout1d(drop_instance)
 
         self.pooling_method = pooling_method
         self.use_bag_prompt = use_bag_prompt
@@ -243,18 +265,34 @@ class CLIP_MIL(nn.Module):
                 device=self.device,
             )
             if pooling_method == "similarity":
+                if pooling_strategy == "question":
+                    question = ["what is the degree of staining in the tumor area in this pathological image."]
+                    question = clip.tokenize(question).to(self.device)
+                    eos = question.argmax(dim=-1)
+                    with torch.no_grad():
+                        question = self.text_encoder.token_embedding(question)
+                        question = self.text_encoder(question, eos).unsqueeze(0)
+                else:
+                    question = None
                 self.instance_pooling = SimilarityPooling(
-                    num_prototype=len(instance_texts), pooling_strategy=pooling_strategy, feat_dim=feat_dim
+                    num_prototype=len(instance_texts), pooling_strategy=pooling_strategy, feat_dim=feat_dim, question=question, question_grad=question_grad
                 )
             elif pooling_method == "group":
+                if pooling_strategy == "question":
+                    question = ["what is the degree of staining in the tumor area in this pathological image."]
+                    question = clip.tokenize(question).to(self.device)
+                    eos = question.argmax(dim=-1)
+                    with torch.no_grad():
+                        question = self.text_encoder.token_embedding(question)
+                        question = self.text_encoder(question, eos).unsqueeze(0)
+                else:
+                    question = None
                 self.instance_pooling = GroupPooling(
-                    num_prototype=len(instance_texts), pooling_strategy=pooling_strategy, feat_dim=feat_dim
+                    num_prototype=len(instance_texts), pooling_strategy=pooling_strategy, feat_dim=feat_dim, question=question, question_grad=question_grad
                 )
 
         else:
             raise NotImplementedError(f"Pooling method {pooling_method} is not implemented")
-
-        self.wsi_mlp = Mlp(in_features=feat_dim, hidden_features=feat_dim // 4, out_features=feat_dim)
 
         if use_bag_prompt:
             bag_template = kwargs["bag_template"]
@@ -295,7 +333,9 @@ class CLIP_MIL(nn.Module):
         return logits
 
     def forward(self, image_features):
-        image_features = self.adaptor(image_features)
+        if self.training:
+            image_features = self.drop_insatnce(image_features)
+            image_features = image_features[torch.sum(image_features, dim=-1)!=0].unsqueeze(0)
 
         output_dict = {}
         if self.pooling_method == "attention" or self.pooling_method == "mean":
@@ -308,7 +348,7 @@ class CLIP_MIL(nn.Module):
         else:
             raise NotImplementedError(f"Pooling method {self.pooling_method} is not implemented")
 
-        wsi_feature = self.wsi_mlp(wsi_feature)
+        wsi_feature = self.adaptor(wsi_feature)
 
         if self.use_bag_prompt:
             bag_text_features, bag_eos_position = self.bag_token_embedding()
@@ -316,6 +356,7 @@ class CLIP_MIL(nn.Module):
             scale = self.bag_prompt_logit_scale.exp()
             bag_logits = self._apply_consine_similarity(wsi_feature, bag_text_features, scale)
             output_dict["bag_logits"] = bag_logits
+
         if self.use_cls_prompt:
             cls_text_features, cls_eos_position = self.cls_token_embedding()
             cls_text_features = self.text_encoder(cls_text_features, cls_eos_position)
@@ -328,7 +369,7 @@ class CLIP_MIL(nn.Module):
 
 if __name__ == '__main__':
     import yaml
-    with open("/home/auwqh/code/CLIP-MIL/examples/config/description/clip_group_CoOP.yaml", 'r') as f:
+    with open("/home/auwqh/code/CLIP-MIL/examples/config/description/clip_group_question.yaml", 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
         f.close()
     model = CLIP_MIL(
@@ -352,8 +393,9 @@ if __name__ == '__main__':
     #     )
     # prompts = prompt_embedding()
 
-    # model = GroupPooling(feat_dim=512, num_prototype=5, pooling_strategy="mean")
+    # question = torch.randn((1, 1, 512))
+    # model = GroupPooling(feat_dim=512, num_prototype=5, pooling_strategy="question", question=question)
     # text_embedding = torch.randn((1, 5, 512))
     # image_embedding = torch.randn((1, 1024, 512))
-    # out = model(image_embedding, text_embedding)
+    # out, _ = model(image_embedding, text_embedding)
     # print(out.shape)
