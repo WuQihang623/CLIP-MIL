@@ -38,54 +38,37 @@ class Attention(nn.Module):
                  qk_scale=None,
                  attn_drop=0.,
                  proj_drop=0.,
-                 qkv_fuse=False):
+                 identity: bool = True):
         super().__init__()
         if out_dim is None:
             out_dim = dim
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim**-0.5
-        self.qkv_fuse = qkv_fuse
 
-        if qkv_fuse:
-            self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
-        else:
-            self.q_proj = nn.Linear(dim, dim, bias=qkv_bias)
-            self.k_proj = nn.Linear(dim, dim, bias=qkv_bias)
-            self.v_proj = nn.Linear(dim, dim, bias=qkv_bias)
+        self.q_proj = nn.Linear(dim, dim, bias=qkv_bias)
+        self.k_proj = nn.Linear(dim, dim, bias=qkv_bias)
+        self.v_proj = nn.Linear(dim, dim, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, out_dim)
         self.proj_drop = nn.Dropout(proj_drop)
-
-    def extra_repr(self):
-        return f'num_heads={self.num_heads}, \n' \
-               f'qkv_bias={self.scale}, \n' \
-               f'qkv_fuse={self.qkv_fuse}'
+        if identity:
+            self.initiate()
 
     def forward(self, query, key=None, *, value=None, mask=None):
-        if self.qkv_fuse:
-            assert key is None
-            assert value is None
-            x = query
-            B, N, C = x.shape
-            S = N
-            # [3, B, nh, N, C//nh]
-            qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-            # [B, nh, N, C//nh]
-            q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
-        else:
-            B, N, C = query.shape
-            if key is None:
-                key = query
-            if value is None:
-                value = key
-            S = key.size(1)
-            # [B, nh, N, C//nh]
-            q = rearrange(self.q_proj(query), 'b n (h c)-> b h n c', h=self.num_heads, b=B, n=N, c=C // self.num_heads)
-            # [B, nh, S, C//nh]
-            k = rearrange(self.k_proj(key), 'b n (h c)-> b h n c', h=self.num_heads, b=B, c=C // self.num_heads)
-            # [B, nh, S, C//nh]
-            v = rearrange(self.v_proj(value), 'b n (h c)-> b h n c', h=self.num_heads, b=B, c=C // self.num_heads)
+        # TODO: add projection or not and x = ratio * x + (1-ratio) * projec(x)
+        B, N, C = query.shape
+        if key is None:
+            key = query
+        if value is None:
+            value = key
+        S = key.size(1)
+        # [B, nh, N, C//nh]
+        q = rearrange(self.q_proj(query), 'b n (h c)-> b h n c', h=self.num_heads, b=B, n=N, c=C // self.num_heads)
+        # [B, nh, S, C//nh]
+        k = rearrange(self.k_proj(key), 'b n (h c)-> b h n c', h=self.num_heads, b=B, c=C // self.num_heads)
+        # [B, nh, S, C//nh]
+        v = rearrange(self.v_proj(value), 'b n (h c)-> b h n c', h=self.num_heads, b=B, c=C // self.num_heads)
 
         # [B, nh, N, S]
         attn = (q @ k.transpose(-2, -1)) * self.scale
@@ -102,8 +85,13 @@ class Attention(nn.Module):
         out = rearrange(attn @ v, 'b h n c -> b n (h c)', h=self.num_heads, b=B, n=N, c=C // self.num_heads)
         out = self.proj(out)
         out = self.proj_drop(out)
-        return out
+        return out, attn
 
+    def initiate(self):
+        with torch.no_grad():
+            self.q_proj.weight.copy_(torch.eye(self.q_proj.in_features))
+            self.k_proj.weight.copy_(torch.eye(self.k_proj.in_features))
+            self.v_proj.weight.copy_(torch.eye(self.v_proj.in_features))
 
 class CrossAttnBlock(nn.Module):
 
@@ -129,18 +117,19 @@ class CrossAttnBlock(nn.Module):
             self.norm_k = norm_layer(dim)
             self.norm_post = nn.Identity()
         self.attn = Attention(
-            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
+            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop, identity=True)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
     def forward(self, query, key, *, mask=None):
-        x = query
-        x = x + self.drop_path(self.attn(self.norm_q(query), self.norm_k(key), mask=mask))
+        x, attn = self.attn(self.norm_q(query), self.norm_k(key), mask=mask)
+        x = query + self.drop_path(x)
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         x = self.norm_post(x)
-        return x
+        return x, attn
+
 
 class Attn_Net_Gated(nn.Module):
     def __init__(self, L=1024, D=256, dropout=False, n_classes=1):
@@ -182,19 +171,8 @@ class Attn_Net_Gated(nn.Module):
         return x
 
 
-class Adapter(nn.Module):
-    def __init__(self, feat_dim, hidden_dim=128):
-        super(Adapter, self).__init__()
-        self.fc = nn.Sequential(
-            nn.Linear(feat_dim, hidden_dim, bias=False),
-            nn.GELU(),
-            nn.Linear(hidden_dim, feat_dim, bias=False),
-        )
 
-    def forward(self, x):
-        return self.fc(x) + x
-
-
+# ————————————————————————————————————GroupViT————————————————————————————————————
 def hard_softmax(logits, dim):
     y_soft = logits.softmax(dim)
     # Straight through.
@@ -316,22 +294,6 @@ class AssignAttention(nn.Module):
         out = self.proj(out)
         out = self.proj_drop(out)
         return out, attn_dict
-
-
-class QuestionTransformerBlock(nn.Module):
-    def __init__(self, feat_dim, num_head, dropout=0.1):
-        super(QuestionTransformerBlock, self).__init__()
-        self.attention = nn.MultiheadAttention(embed_dim=feat_dim, num_heads=num_head, batch_first=True)
-        self.ffn = Mlp(in_features=feat_dim, hidden_features=feat_dim // 4, out_features=feat_dim)
-        self.layernorm = nn.LayerNorm(feat_dim)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, question, image_features):
-        image_features, _ = self.attention(question, image_features, image_features)
-        image_features = image_features[: ,:1, :].squeeze(0)
-        ffn_output = self.ffn(image_features)
-        image_features = self.layernorm(image_features + self.dropout(ffn_output))
-        return image_features
 
 # ————————————————————————————————————Pooling method————————————————————————————————————
 class MeanPooling(nn.Module):
@@ -567,7 +529,7 @@ class TransLayer(nn.Module):
         else:
             out = self.attn(self.norm(x), return_attn=return_attn)
             x = x + out
-            return x
+            return x, None, None
 
 
 class PPEG(nn.Module):
@@ -596,7 +558,7 @@ class TransMILPooling(nn.Module):
         self.layer2 = TransLayer(dim=hidden_dim)
         self.norm = nn.LayerNorm(hidden_dim)
 
-    def forward(self, image_features):
+    def forward(self, image_features, return_attn=False):
         # image_features: [B, N, feat_dim]
 
         image_features = self.fc(image_features)
@@ -612,18 +574,21 @@ class TransMILPooling(nn.Module):
         image_features = torch.cat([cls_tokens, image_features], dim=1)
 
         # Translayer 1
-        image_features, attn1, padding = self.layer1(image_features, return_attn=True)
-        attn1 = attn1[:, :, 0, 1: (H+1)]
+        image_features, attn1, padding = self.layer1(image_features, return_attn=return_attn)
 
         image_features = self.pos_layer(image_features, _H, _W)
 
-        image_features, attn2, padding = self.layer2(image_features, return_attn=True)
-        attn2 = attn2[:, :, 0, 1: (H+1)]
-
-        attn = (torch.mean(attn1, dim=1) + torch.mean(attn2, dim=1)) / 2
+        image_features, attn2, padding = self.layer2(image_features, return_attn=return_attn)
 
         image_features = self.norm(image_features)[:, 0] # [B, hidden_dim]
-        return image_features, attn
+
+        if return_attn:
+            attn1 = attn1[:, :, 0, 1: (H + 1)]
+            attn2 = attn2[:, :, 0, 1: (H + 1)]
+            attn = (torch.mean(attn1, dim=1) + torch.mean(attn2, dim=1)) / 2
+            return image_features, attn
+        else:
+            return image_features, None
 
 if __name__ == '__main__':
     x = torch.randn((1, 1024, 512))

@@ -18,62 +18,9 @@ export PYTHONPATH=./:$PYTHONPATH
 wz=1
 cd ../
 
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/descrition/clip_group_firstoken.yaml" \
-                              --log_name "clip_description_group_firstoken" \
+srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_instanceStainPooling.yaml" \
+                              --log_name "clip_instanceStainPooling" \
                               --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/HER2" \
                               --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
                               --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
 
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/descrition/clip_group_question.yaml" \
-                              --log_name "clip_description_group_question" \
-                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/HER2" \
-                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
-                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/descrition/clip_similarity_firstoken.yaml" \
-                              --log_name "clip_description_similarity_firstoken" \
-                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/HER2" \
-                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
-                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/descrition/clip_similarity_question.yaml" \
-                              --log_name "clip_description_similarity_question" \
-                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/HER2" \
-                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
-                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/no_description/clip_group_firstoken.yaml" \
-                              --log_name "clip_nodescription_group_firstoken" \
-                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/HER2" \
-                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
-                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/no_description/clip_group_question.yaml" \
-                              --log_name "clip_nodescription_group_question" \
-                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/HER2" \
-                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
-                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/no_description/clip_similarity_firstoken.yaml" \
-                              --log_name "clip_nodescription_similarity_firstoken" \
-                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/HER2" \
-                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
-                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/no_description/clip_similarity_question.yaml" \
-                              --log_name "clip_nodescription_similarity_question" \
-                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/HER2" \
-                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
-                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_attentionPooling.yaml" \
-                              --log_name "clip_attentionPooling" \
-                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/HER2" \
-                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
-                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_meanPooling.yaml" \
-                              --log_name "clip_meanPooling" \
-                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/HER2" \
-                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
-                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"

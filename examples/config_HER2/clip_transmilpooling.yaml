@@ -5,9 +5,8 @@ model:
   pooling_method: transmil
   use_CoOP: true
   device: cuda
-  drop_instance: 0.5
 
-  instance_template: "an immunohistochemical pathological image of"
+  template: "an immunohistochemical pathological image of"
   instance_descriptions:
     "invasive cancer region":
       - "high cell density with minimal spacing between cancer cells"
@@ -52,7 +51,6 @@ model:
       - "light coloration, no strongly positive staining areas"
       - "low image noise with good display quality"
 
-  stain_template: "an immunohistochemical pathological image of"
   stain_descriptions:
     "no cell membrane staining":
       - "no apparent staining on cell membranes, with clear background staining"
@@ -79,7 +77,6 @@ model:
       - "continuous staining on cell membranes with no interruptions, clear boundaries"
       - "prominent staining signals, with cell membrane structures clearly visible"
 
-  bag_template: "an immunohistochemical pathological image of"
   bag_descriptions:
     "HER2 Score 0":
       - "no staining, or membrane staining in < 10 % of tumor cells that is incomplete and faint / barely perceptible"

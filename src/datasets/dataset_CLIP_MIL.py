@@ -19,27 +19,22 @@ def find_nearest_index(lst, target):
     return min(range(len(lst)), key=lambda i: abs(lst[i] - target))
 
 class dataset_CLIP_MIL(Dataset):
-    def __init__(self, csv_path, clinical_path, bag_prompts, feat_dir, mode):
-        self.patient_ids, self.label, self.scores = self.return_splits(csv_path, clinical_path, bag_prompts, mode)
+    def __init__(self, csv_path, feat_dir, mode):
+        self.patient_ids, self.label = self.return_splits(csv_path, mode)
         self.feat_dir = feat_dir
-
-    def pdl1_score(self, patient_id, clinical):
-        score = int(clinical.loc[clinical['检查号'] == patient_id, '诊断结果'].values[0])
-        return score
 
     def __getitem__(self, idx):
         patient_id = self.patient_ids[idx]
         feat_path = os.path.join(self.feat_dir, patient_id + ".pt")
         feat = torch.load(feat_path, map_location="cpu")
         label = self.label[idx]
-        score_id = self.scores[idx]
 
-        return feat, label, score_id
+        return feat, label
 
     def __len__(self):
         return len(self.patient_ids)
 
-    def return_splits(self, csv_path, clinical_path, bag_prompts, mode):
+    def return_splits(self, csv_path, mode):
         df = pd.read_csv(csv_path)
         if mode == "train":
             patient_ids = df['train'].dropna().tolist()
@@ -51,22 +46,7 @@ class dataset_CLIP_MIL(Dataset):
             patient_ids = df['test'].dropna().tolist()
             label = df['test_label'].dropna().tolist()
 
-        if bag_prompts is None:
-            return patient_ids, label, [0 for _ in range(len(patient_ids))]
-        else:
-            scores = []
-            clinical = pd.read_excel(clinical_path)
-            bag_prompts = list(bag_prompts.keys())
-            bag_prompts_level = [extract_and_convert_score(prompt) for prompt in bag_prompts]
-            for patient_id in patient_ids:
-                score = self.pdl1_score(patient_id, clinical)
-                score_ids = find_nearest_index(bag_prompts_level, score)
-                scores.append(score_ids)
-
-            print("-----label and score----")
-            for l, s in zip(label, scores):
-                print(l, s)
-            return patient_ids, label, scores
+        return patient_ids, label
 
 if __name__ == '__main__':
     csv_path = "/home/auwqh/code/CLIP-MIL/data/PDL1_fold/fold_0.csv"

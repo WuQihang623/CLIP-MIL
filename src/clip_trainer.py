@@ -18,17 +18,14 @@ def train_one_epoch(model, loader, loss_fn, optimizer, scheduler, epoch, device,
     total_loss = {}
     total_err = 0.
 
-    for step, (inputs, targets, clinical_scores) in enumerate(loader):
+    for step, (inputs, targets) in enumerate(loader):
         inputs = inputs.to(device).type(torch.float32)
         targets = targets.to(device).type(torch.long)
-        clinical_scores = clinical_scores.to(device).type(torch.long)
 
         predictions = model(inputs)
         loss_dict = loss_fn(
-            preds_cls=predictions["cls_logits"],
+            preds_cls=predictions["logits"],
             targets_cls=targets,
-            preds_bag=predictions.get("bag_logits"),
-            targets_bag=clinical_scores,
         )
         loss = loss_dict["loss"]
         loss.backward()
@@ -42,7 +39,7 @@ def train_one_epoch(model, loader, loss_fn, optimizer, scheduler, epoch, device,
                 total_loss[k] = 0.
             total_loss[k] += v.item() * targets.shape[0]
 
-        err, fps, fns = calculate_metrics(predictions["cls_logits"].detach(), targets.cpu())
+        err, fps, fns = calculate_metrics(predictions["logits"].detach(), targets.cpu())
         total_err += err
 
     for k, v in total_loss.items():
@@ -62,18 +59,15 @@ def test_one_epoch(model, loader, loss_fn, device):
     preds_list = []
     targets_list = []
 
-    for step, (inputs, targets, clinical_scores) in enumerate(loader):
+    for step, (inputs, targets) in enumerate(loader):
         inputs = inputs.to(device).type(torch.float32)
         targets = targets.to(device).type(torch.long)
-        clinical_scores = clinical_scores.to(device).type(torch.long)
 
         predictions = model(inputs)
-        preds = predictions["cls_logits"].detach().argmax(dim=1)
+        preds = predictions["logits"].detach().argmax(dim=1)
         loss_dict = loss_fn(
-            preds_cls=predictions["cls_logits"],
+            preds_cls=predictions["logits"],
             targets_cls=targets,
-            preds_bag=predictions.get("bag_logits"),
-            targets_bag=clinical_scores,
         )
 
         for k, v in loss_dict.items():

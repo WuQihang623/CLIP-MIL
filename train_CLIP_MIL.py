@@ -33,9 +33,9 @@ def main(config):
     for k in range(5):
         logger.info(f"-----------Fold {k}-----------")
         csv_path = os.path.join(config["fold_dir"], f"fold_{k}.csv")
-        train_set = dataset_CLIP_MIL(csv_path, config.get("clinical_path"), config["model"].get("bag_texts"), config["feat_dir"], "train")
-        val_set = dataset_CLIP_MIL(csv_path, config.get("clinical_path"), config["model"].get("bag_texts"), config["feat_dir"], "val")
-        test_set = dataset_CLIP_MIL(csv_path, config.get("clinical_path"), config["model"].get("bag_texts"), config["feat_dir"], "test")
+        train_set = dataset_CLIP_MIL(csv_path, config["feat_dir"], "train")
+        val_set = dataset_CLIP_MIL(csv_path, config["feat_dir"], "val")
+        test_set = dataset_CLIP_MIL(csv_path, config["feat_dir"], "test")
 
         class_sample_count = [len([label for label in train_set.label if label == cls]) for cls in set(train_set.label)]
         print("class_sample_count", class_sample_count)
@@ -97,7 +97,7 @@ def main(config):
         best_f1 = 0
         patience = config["early_stop"]
         now_patience = 0
-        loss_fn = MIL_Loss(use_kl=model.use_bag_prompt, lambda_kl=config["lambda_kl"])
+        loss_fn = MIL_Loss()
         for epoch in range(config["n_epochs"]):
             train_loss, train_err = train_one_epoch(
                 model, train_loader, loss_fn, optimizer, scheduler, epoch, config["model"]["device"], logger
