@@ -40,47 +40,90 @@ class PromptEmbedding(nn.Module):
             self.ctx_embedding = nn.Parameter(embedding[0, 1: n_ctx, :]) # template
             self.suffix_length = context_length - n_ctx
 
-    def forward_fixed(self, descriptions: dict):
-        prompts = []
-        for class_name, class_descriptions in descriptions.items():
-            prompts.append(f"{self.template} {class_name}, which is {random.choice(class_descriptions)}")
-        prompts = self.tokenizer(prompts, context_length=self.context_length).to(self.device)
-
-        with torch.no_grad():
-            embedding = self.token_embedding(prompts)
-        eos_position = prompts.argmax(dim=-1)
-        return embedding, eos_position
-
-    def forward_CoOP(self, descriptions: dict):
-        n_classes = len(descriptions)
-        ctx = self.ctx_embedding
-        if ctx.dim() == 2:
-            ctx = ctx.unsqueeze(0).expand(n_classes, -1, -1)
-        
-        prefix = self.token_prefix
-        if prefix.dim() == 2:
-            prefix = prefix.unsqueeze(0).expand(n_classes, -1, -1)
-
-        prompts = []
-        for class_name, class_description in descriptions.items():
-            prompts.append(f"{class_name}, which is {random.choice(class_description)}")
-        prompts = self.tokenizer(prompts, context_length=self.suffix_length).to(self.device)
-        with torch.no_grad():
-            suffix = self.token_embedding(prompts)
-
-        embeddings = torch.cat([
-            prefix,
-            ctx,
-            suffix
-        ], dim=1)
-        eos_postion = prompts.argmax(dim=-1) + self.context_length - self.suffix_length
-        return embeddings, eos_postion
-
-    def forward(self, descriptions: dict):
-        if self.use_CoOP:
-            return self.forward_CoOP(descriptions)
+    def forward_fixed(self, descriptions: dict, ensemble=False):
+        if ensemble:
+            embeddings = {}
+            eos_postions = {}
+            for cls_name, cls_descriptions in descriptions.items():
+                prompts = []
+                prompts.extend([f"{self.template} {cls_name}, which is {random.choice(description)}"
+                                 for description in cls_descriptions])
+                prompts = self.tokenizer(prompts, context_length=self.context_length).to(self.device)
+                with torch.no_grad():
+                    embedding = self.token_embedding(prompts)
+                eos_postion = prompts.argmax(dim=-1)
+                embeddings[cls_name] = embedding
+                eos_postions[cls_name] = eos_postion
+            return embeddings, eos_postions
         else:
-            return self.forward_fixed(descriptions)
+            prompts = []
+            for class_name, class_descriptions in descriptions.items():
+                prompts.append(f"{self.template} {class_name}, which is {random.choice(class_descriptions)}")
+            prompts = self.tokenizer(prompts, context_length=self.context_length).to(self.device)
+
+            with torch.no_grad():
+                embedding = self.token_embedding(prompts)
+            eos_position = prompts.argmax(dim=-1)
+            return embedding, eos_position
+
+    def forward_CoOP(self, descriptions: dict, ensemble=False):
+        ctx = self.ctx_embedding
+        prefix = self.token_prefix
+        if ensemble:
+            embeddings = {}
+            eos_postions = {}
+            for cls_name, cls_descriptions in descriptions.items():
+                n = len(cls_descriptions)
+                if ctx.dim() == 2:
+                    ctx = ctx.unsqueeze(0).expand(n, -1, -1)
+                if prefix.dim() == 2:
+                    prefix = prefix.unsqueeze(0).expand(n, -1, -1)
+
+                prompts = []
+                for description in cls_descriptions:
+                    prompts.append(f"{cls_name}, which is {description}")
+                prompts = self.tokenizer(prompts, context_length=self.suffix_length).to(self.device)
+                with torch.no_grad():
+                    suffix = self.token_embedding(prompts)
+
+                embedding = torch.cat([
+                    prefix,
+                    ctx,
+                    suffix
+                ], dim=1)
+                eos_postion = prompts.argmax(dim=-1) + self.context_length - self.suffix_length
+                embeddings[cls_name] = embedding
+                eos_postions[cls_name] = eos_postion
+            return embeddings, eos_postions
+
+        else:
+            n_classes = len(descriptions)
+            if ctx.dim() == 2:
+                ctx = ctx.unsqueeze(0).expand(n_classes, -1, -1)
+
+            if prefix.dim() == 2:
+                prefix = prefix.unsqueeze(0).expand(n_classes, -1, -1)
+
+            prompts = []
+            for class_name, class_description in descriptions.items():
+                prompts.append(f"{class_name}, which is {random.choice(class_description)}")
+            prompts = self.tokenizer(prompts, context_length=self.suffix_length).to(self.device)
+            with torch.no_grad():
+                suffix = self.token_embedding(prompts)
+
+            embeddings = torch.cat([
+                prefix,
+                ctx,
+                suffix
+            ], dim=1)
+            eos_postion = prompts.argmax(dim=-1) + self.context_length - self.suffix_length
+            return embeddings, eos_postion
+
+    def forward(self, descriptions: dict, ensemble=False):
+        if self.use_CoOP:
+            return self.forward_CoOP(descriptions, ensemble)
+        else:
+            return self.forward_fixed(descriptions, ensemble)
 
 
 class CLIP_MIL(nn.Module):
@@ -93,6 +136,8 @@ class CLIP_MIL(nn.Module):
             bag_descriptions: dict,
             use_CoOP: bool,
             device: str,
+            ensemble: bool = False,
+            attention: str = "cross",
             **kwargs
     ):
         super(CLIP_MIL, self).__init__()
@@ -101,20 +146,26 @@ class CLIP_MIL(nn.Module):
         self.text_encoder = clip.load_text_encoder(name=text_enc_name, device=self.device)
         self.pooling_method = pooling_method
         self.bag_descriptions = bag_descriptions
+        self.ensemble = ensemble
 
         # set pooling method
         if pooling_method == "mean":
             self.instance_pooling = MeanPooling()
         elif pooling_method == "transmil":
             self.instance_pooling = TransMILPooling(feat_dim=feat_dim, hidden_dim=feat_dim)
+        elif pooling_method == "abmil":
+            self.instance_pooling = Attn_Net_Gated(L=feat_dim, D=feat_dim)
         elif self.pooling_method == "instance":
             self.instance_descriptions = kwargs["instance_descriptions"]
-            self.instance_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4)
+            self.instance_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4, attention=attention)
+        elif self.pooling_method == "stain":
+            self.stain_descriptions = kwargs["stain_descriptions"]
+            self.stain_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4, attention=attention)
         elif self.pooling_method == "instance_stain":
             self.instance_descriptions = kwargs["instance_descriptions"]
-            self.instance_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4)
             self.stain_descriptions = kwargs["stain_descriptions"]
-            self.stain_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4)
+            self.instance_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4, attention=attention)
+            self.stain_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4, attention=attention)
             self.fc = nn.Linear(in_features=2*feat_dim, out_features=feat_dim)
         else:
             raise ValueError("Unknown pooling method: {}".format(pooling_method))
@@ -135,31 +186,51 @@ class CLIP_MIL(nn.Module):
         logits = scale * image_features @ text_features.t()
         return logits
 
+    def _text_encoder(self, descriptions: dict, ensemble=False):
+        if ensemble:
+            ensemble_prompts = []
+            prompts, eos_positions = self.prompt_embedding(descriptions, ensemble)
+            for cls_name in descriptions.keys():
+                embedding = self.text_encoder(prompts[cls_name], eos_positions[cls_name])
+                ensemble_prompts.append(torch.mean(embedding, dim=0, keepdim=True))
+            ensemble_prompts = torch.cat(ensemble_prompts, dim=0)
+            return ensemble_prompts
+        else:
+            prompts, eos_positions = self.prompt_embedding(descriptions, ensemble)
+            embedding = self.text_encoder(prompts, eos_positions)
+            return embedding
+
     def forward(self, image_features, return_attn=False):
-        # TODO: if validation, ensemble the descriptions
         # image_features: [1, N, dim]
         output_dict = {}
-        bag_prompts, bag_eos_position = self.prompt_embedding(self.bag_descriptions)
-        bag_prompts = self.text_encoder(bag_prompts, bag_eos_position)
+
+        ensemble = self.ensemble & (not self.training)
+
+        bag_prompts = self._text_encoder(self.bag_descriptions, ensemble)
 
         if self.pooling_method == "mean":
             wsi_feature = self.instance_pooling(image_features)
         elif self.pooling_method == "transmil":
             wsi_feature, instance_attn = self.instance_pooling(image_features, return_attn)
-            output_dict["attn"] = instance_attn
+            output_dict["inst_attn"] = instance_attn
+        elif self.pooling_method == "abmil":
+            wsi_feature, instance_attn = self.instance_pooling(image_features)
+            output_dict["inst_attn"] = instance_attn
         elif self.pooling_method == "instance":
-            cls_prompts, cls_eos_position = self.prompt_embedding(self.instance_descriptions)
-            cls_prompts = self.text_encoder(cls_prompts, cls_eos_position).unsqueeze(0)
+            cls_prompts = self._text_encoder(self.instance_descriptions, ensemble).unsqueeze(0)
             image_features, attn = self.instance_pooling(cls_prompts, image_features)
             wsi_feature = torch.mean(image_features.squeeze(0), dim=0, keepdim=True)
-            output_dict["attn"] = attn
+            output_dict["inst_attn"] = attn
+        elif self.pooling_method == "stain":
+            stain_prompts = self._text_encoder(self.stain_descriptions, ensemble).unsqueeze(0)
+            image_features, attn = self.stain_pooling(stain_prompts, image_features)
+            wsi_feature = torch.mean(image_features.squeeze(0), dim=0, keepdim=True)
+            output_dict["stain_attn"] = attn
         elif self.pooling_method == "instance_stain":
-            cls_prompts, cls_eos_position = self.prompt_embedding(self.instance_descriptions)
-            cls_prompts = self.text_encoder(cls_prompts, cls_eos_position).unsqueeze(0)
+            cls_prompts = self._text_encoder(self.instance_descriptions, ensemble).unsqueeze(0)
             cls_features, cls_attn = self.instance_pooling(cls_prompts, image_features)
 
-            stain_prompts, stain_eos_position = self.prompt_embedding(self.stain_descriptions)
-            stain_prompts = self.text_encoder(stain_prompts, stain_eos_position).unsqueeze(0)
+            stain_prompts = self._text_encoder(self.stain_descriptions, ensemble).unsqueeze(0)
             stain_features, stain_attn = self.stain_pooling(stain_prompts, image_features)
 
             wsi_feature = torch.cat([
@@ -167,7 +238,7 @@ class CLIP_MIL(nn.Module):
                 torch.mean(stain_features.squeeze(0), dim=0, keepdim=True)
             ], dim=-1)
             wsi_feature = self.fc(wsi_feature)
-            output_dict["cls_attn"] = cls_attn
+            output_dict["inst_attn"] = cls_attn
             output_dict["stain_attn"] = stain_attn
         else:
             raise ValueError("Unknown pooling method: {}".format(self.pooling_method))
@@ -179,12 +250,13 @@ class CLIP_MIL(nn.Module):
 
 if __name__ == '__main__':
     import yaml
-    with open("/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_transmilpooling.yaml", 'r') as f:
+    with open("/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_abmilpooling.yaml", 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
         f.close()
     model = CLIP_MIL(
         **config["model"]
     )
+    model.train()
     output = model(torch.randn(1, 1024, 512))
     for k, v in output.items():
         if v is not None:

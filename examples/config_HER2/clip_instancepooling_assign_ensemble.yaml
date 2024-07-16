@@ -2,9 +2,11 @@ model:
   feat_dim: 512
   num_classes: 4
   text_enc_name: ViT-B/32
-  pooling_method: transmil
+  pooling_method: instance
   use_CoOP: true
   device: cuda
+  ensemble: true
+  attention: assign
 
   template: "an immunohistochemical pathological image of"
   instance_descriptions:
@@ -97,5 +99,5 @@ scheduler:
   T_max: 200
   eta_min: 1.0e-7
 n_epochs: 100
-seed: 2022
+seed: 1
 early_stop: 20

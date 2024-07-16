@@ -45,7 +45,6 @@ class Attention(nn.Module):
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim**-0.5
-
         self.q_proj = nn.Linear(dim, dim, bias=qkv_bias)
         self.k_proj = nn.Linear(dim, dim, bias=qkv_bias)
         self.v_proj = nn.Linear(dim, dim, bias=qkv_bias)
@@ -56,27 +55,31 @@ class Attention(nn.Module):
             self.initiate()
 
     def forward(self, query, key=None, *, value=None, mask=None):
-        # TODO: add projection or not and x = ratio * x + (1-ratio) * projec(x)
         B, N, C = query.shape
         if key is None:
             key = query
         if value is None:
             value = key
         S = key.size(1)
+
+        query = self.q_proj(query)
+        key = self.k_proj(key)
+        value = self.v_proj(value)
+
         # [B, nh, N, C//nh]
-        q = rearrange(self.q_proj(query), 'b n (h c)-> b h n c', h=self.num_heads, b=B, n=N, c=C // self.num_heads)
+        q = rearrange(query, 'b n (h c)-> b h n c', h=self.num_heads, b=B, n=N, c=C // self.num_heads)
         # [B, nh, S, C//nh]
-        k = rearrange(self.k_proj(key), 'b n (h c)-> b h n c', h=self.num_heads, b=B, c=C // self.num_heads)
+        k = rearrange(key, 'b n (h c)-> b h n c', h=self.num_heads, b=B, c=C // self.num_heads)
         # [B, nh, S, C//nh]
-        v = rearrange(self.v_proj(value), 'b n (h c)-> b h n c', h=self.num_heads, b=B, c=C // self.num_heads)
+        v = rearrange(value, 'b n (h c)-> b h n c', h=self.num_heads, b=B, c=C // self.num_heads)
 
         # [B, nh, N, S]
-        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn_raw = (q @ k.transpose(-2, -1)) * self.scale
         if mask is not None:
-            attn = attn + mask.unsqueeze(dim=1)
+            attn = attn_raw + mask.unsqueeze(dim=1)
             attn = attn.softmax(dim=-1)
         else:
-            attn = attn.softmax(dim=-1)
+            attn = attn_raw.softmax(dim=-1)
         attn = self.attn_drop(attn)
         assert attn.shape == (B, self.num_heads, N, S)
 
@@ -85,50 +88,14 @@ class Attention(nn.Module):
         out = rearrange(attn @ v, 'b h n c -> b n (h c)', h=self.num_heads, b=B, n=N, c=C // self.num_heads)
         out = self.proj(out)
         out = self.proj_drop(out)
-        return out, attn
+        return out, attn_raw
 
     def initiate(self):
         with torch.no_grad():
             self.q_proj.weight.copy_(torch.eye(self.q_proj.in_features))
             self.k_proj.weight.copy_(torch.eye(self.k_proj.in_features))
             self.v_proj.weight.copy_(torch.eye(self.v_proj.in_features))
-
-class CrossAttnBlock(nn.Module):
-
-    def __init__(self,
-                 dim,
-                 num_heads,
-                 mlp_ratio=4.,
-                 qkv_bias=False,
-                 qk_scale=None,
-                 drop=0.,
-                 attn_drop=0.,
-                 drop_path=0.,
-                 act_layer=nn.GELU,
-                 norm_layer=nn.LayerNorm,
-                 post_norm=False):
-        super().__init__()
-        if post_norm:
-            self.norm_post = norm_layer(dim)
-            self.norm_q = nn.Identity()
-            self.norm_k = nn.Identity()
-        else:
-            self.norm_q = norm_layer(dim)
-            self.norm_k = norm_layer(dim)
-            self.norm_post = nn.Identity()
-        self.attn = Attention(
-            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop, identity=True)
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm2 = norm_layer(dim)
-        mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
-
-    def forward(self, query, key, *, mask=None):
-        x, attn = self.attn(self.norm_q(query), self.norm_k(key), mask=mask)
-        x = query + self.drop_path(x)
-        x = x + self.drop_path(self.mlp(self.norm2(x)))
-        x = self.norm_post(x)
-        return x, attn
+            self.proj.weight.copy_(torch.eye(self.proj.in_features))
 
 
 class Attn_Net_Gated(nn.Module):
@@ -168,7 +135,7 @@ class Attn_Net_Gated(nn.Module):
         A = torch.transpose(A, 0, 1)
         x = torch.mm(torch.softmax(A, dim=-1), x)
 
-        return x
+        return x, A
 
 
 
@@ -221,7 +188,8 @@ class AssignAttention(nn.Module):
                  gumbel=True,
                  gumbel_tau=1.,
                  sum_assign=False,
-                 assign_eps=1.):
+                 assign_eps=1.,
+                 identity=True):
         super().__init__()
         self.num_heads = num_heads
         head_dim = dim // num_heads
@@ -238,6 +206,8 @@ class AssignAttention(nn.Module):
         self.gumbel_tau = gumbel_tau
         self.sum_assign = sum_assign
         self.assign_eps = assign_eps
+        if identity:
+            self.initiate()
 
     def get_attn(self, attn, gumbel=None, hard=None):
 
@@ -258,7 +228,7 @@ class AssignAttention(nn.Module):
 
         return attn
 
-    def forward(self, query, key=None, *, value=None, return_attn=True):
+    def forward(self, query, key=None, *, value=None):
         B, N, C = query.shape
         if key is None:
             key = query
@@ -276,12 +246,6 @@ class AssignAttention(nn.Module):
         raw_attn = (q @ k.transpose(-2, -1)) * self.scale
 
         attn = self.get_attn(raw_attn)
-        if return_attn:
-            hard_attn = attn.clone()
-            soft_attn = self.get_attn(raw_attn, gumbel=False, hard=False)
-            attn_dict = hard_attn
-        else:
-            attn_dict = None
 
         if not self.sum_assign:
             attn = attn / (attn.sum(dim=-1, keepdim=True) + self.assign_eps)
@@ -293,7 +257,59 @@ class AssignAttention(nn.Module):
 
         out = self.proj(out)
         out = self.proj_drop(out)
-        return out, attn_dict
+        return out, raw_attn
+
+    def initiate(self):
+        with torch.no_grad():
+            self.q_proj.weight.copy_(torch.eye(self.q_proj.in_features))
+            self.k_proj.weight.copy_(torch.eye(self.k_proj.in_features))
+            self.v_proj.weight.copy_(torch.eye(self.v_proj.in_features))
+            self.proj.weight.copy_(torch.eye(self.proj.in_features))
+
+
+class CrossAttnBlock(nn.Module):
+
+    def __init__(self,
+                 dim,
+                 num_heads,
+                 attention="cross",
+                 mlp_ratio=4.,
+                 qkv_bias=False,
+                 qk_scale=None,
+                 drop=0.,
+                 attn_drop=0.,
+                 drop_path=0.,
+                 act_layer=nn.GELU,
+                 norm_layer=nn.LayerNorm,
+                 post_norm=False):
+        super().__init__()
+        if post_norm:
+            self.norm_post = norm_layer(dim)
+            self.norm_q = nn.Identity()
+            self.norm_k = nn.Identity()
+        else:
+            self.norm_q = norm_layer(dim)
+            self.norm_k = norm_layer(dim)
+            self.norm_post = nn.Identity()
+        if attention == "cross":
+            self.attn = Attention(
+                dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop, identity=True
+            )
+        elif attention == "assign":
+            self.attn = AssignAttention(
+                dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop, identity=True
+            )
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.norm2 = norm_layer(dim)
+        mlp_hidden_dim = int(dim * mlp_ratio)
+        self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+
+    def forward(self, query, key, *, value=None):
+        x, attn = self.attn(self.norm_q(query), self.norm_k(key))
+        x = query + self.drop_path(x)
+        x = x + self.drop_path(self.mlp(self.norm2(x)))
+        x = self.norm_post(x)
+        return x, attn
 
 # ————————————————————————————————————Pooling method————————————————————————————————————
 class MeanPooling(nn.Module):
