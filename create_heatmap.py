@@ -81,15 +81,15 @@ def creat_heatmap(model, cls_names, wsi_names, wsi_dir, h5_dir, save_dir, device
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default="/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_instanceStainPooling_ensemble.yaml")
-    parser.add_argument('--checkpoint_dir', type=str, default="/home/auwqh/code/CLIP-MIL/save_weights/HER2/clip_instanceStainPooling_ensemble")
+    parser.add_argument('--config', type=str, default="/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_instancepooling_ensemble.yaml")
+    parser.add_argument('--checkpoint_dir', type=str, default="/home/auwqh/code/CLIP-MIL/save_weights/HER2/clip_instancepooling_ensemble1")
     parser.add_argument('--description', type=str, default="instance", choices=["instance", "stain"])
     parser.add_argument('--device', type=str, default="cpu")
-    parser.add_argument('--csv_dir', type=str, default="/home/auwqh/code/CLIP-MIL/data/HER2_fold")
+    parser.add_argument('--csv_dir', type=str, default="/home/auwqh/code/CLIP-MIL/data/PDL1_fold")
     parser.add_argument('--fold', type=int, default=0)
-    parser.add_argument('--wsi_dir', type=str, default="/home/auwqh/dataset/HER2/WSI/Testing/WSI/")
-    parser.add_argument('--h5_dir', type=str, default="/home/auwqh/dataset/HER2/patch/clip_ViTB32/h5_files/")
-    parser.add_argument('--save_dir', type=str, default="/home/auwqh/code/CLIP-MIL/heatmap/clip_mil/clip_mil_instanceStainPooling_ensemble")
+    parser.add_argument('--wsi_dir', type=str, default="/home/auwqh/dataset/PDL1/meta_data/Testing/WSI/")
+    parser.add_argument('--h5_dir', type=str, default="/home/auwqh/dataset/PDL1/meta_data/Testing/patch/clip_ViTB32/h5_files/")
+    parser.add_argument('--save_dir', type=str, default="/home/auwqh/code/CLIP-MIL/heatmap/clip_mil_pdl1/clip_mil_instanceStainPooling_ensemble_her2weight")
 
     args = parser.parse_args()
     return args

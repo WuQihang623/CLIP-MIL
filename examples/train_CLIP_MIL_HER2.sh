@@ -18,8 +18,8 @@ export PYTHONPATH=./:$PYTHONPATH
 wz=1
 cd ../
 
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_abmilpooling.yaml" \
-                              --log_name "clip_abmilpooling" \
+srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_instanceStainPooling_group_ensemble.yaml" \
+                              --log_name "clip_instanceStainPooling_group_ensemble" \
                               --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/HER2" \
                               --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
                               --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"

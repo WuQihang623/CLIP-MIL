@@ -6,8 +6,8 @@ import numpy as np
 from torch import nn, einsum
 from einops import rearrange
 import torch.nn.functional as F
-from timm.models.layers import DropPath
 from einops import rearrange, reduce
+from timm.models.layers import DropPath, to_2tuple
 
 class Mlp(nn.Module):
 
@@ -310,6 +310,108 @@ class CrossAttnBlock(nn.Module):
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         x = self.norm_post(x)
         return x, attn
+
+
+class GroupingBlock(nn.Module):
+    """Grouping Block to group similar segments together.
+
+    Args:
+        dim (int): Dimension of the input.
+        out_dim (int): Dimension of the output.
+        num_heads (int): Number of heads in the grouping attention.
+        num_output_group (int): Number of output groups.
+        norm_layer (nn.Module): Normalization layer to use.
+        mlp_ratio (float): Ratio of mlp hidden dim to embedding dim. Default: 4
+        hard (bool): Whether to use hard or soft assignment. Default: True
+        gumbel (bool): Whether to use gumbel softmax. Default: True
+        sum_assign (bool): Whether to sum assignment or average. Default: False
+        assign_eps (float): Epsilon to avoid divide by zero. Default: 1
+        gum_tau (float): Temperature for gumbel softmax. Default: 1
+    """
+
+    def __init__(self,
+                 dim,
+                 num_heads,
+                 num_group_token,
+                 num_output_group,
+                 norm_layer=nn.LayerNorm,
+                 mlp_ratio=(0.5, 4.0),
+                 hard=True,
+                 gumbel=True,
+                 sum_assign=False,
+                 assign_eps=1.,
+                 gumbel_tau=1.):
+        super(GroupingBlock, self).__init__()
+        self.dim = dim
+        self.hard = hard
+        self.gumbel = gumbel
+        self.sum_assign = sum_assign
+
+        self.group_tokens = nn.Parameter(torch.zeros(1, num_group_token, dim))
+        nn.init.trunc_normal_(self.group_tokens, std=.02)
+
+        # norm on group_tokens
+        self.norm_tokens = norm_layer(dim)
+        tokens_dim, channels_dim = [int(x * dim) for x in to_2tuple(mlp_ratio)]
+        self.mlp_inter = Mlp(num_group_token, tokens_dim, num_output_group)
+        self.norm_post_tokens = norm_layer(dim)
+        # norm on x
+        self.norm_x = norm_layer(dim)
+        self.pre_assign_attn = CrossAttnBlock(
+            dim=dim, num_heads=num_heads, mlp_ratio=4, qkv_bias=True, norm_layer=norm_layer, post_norm=True)
+
+        self.assign = AssignAttention(
+            dim=dim,
+            num_heads=1,
+            qkv_bias=True,
+            hard=hard,
+            gumbel=gumbel,
+            gumbel_tau=gumbel_tau,
+            sum_assign=sum_assign,
+            assign_eps=assign_eps)
+        self.norm_new_x = norm_layer(dim)
+        self.mlp_channels = Mlp(dim, channels_dim, dim)
+        self.reduction = nn.Identity()
+
+    def project_group_token(self, group_tokens):
+        """
+        Args:
+            group_tokens (torch.Tensor): group tokens, [B, S_1, C]
+
+        inter_weight (torch.Tensor): [B, S_2, S_1], S_2 is the new number of
+            group tokens, it's already softmaxed along dim=-1
+
+        Returns:
+            projected_group_tokens (torch.Tensor): [B, S_2, C]
+        """
+        # [B, S_2, C] <- [B, S_1, C]
+        projected_group_tokens = self.mlp_inter(group_tokens.transpose(1, 2)).transpose(1, 2)
+        projected_group_tokens = self.norm_post_tokens(projected_group_tokens)
+        return projected_group_tokens
+
+    def forward(self, x):
+        """
+        Args:
+            x (torch.Tensor): image tokens, [B, L, C]
+            group_tokens (torch.Tensor): group tokens, [B, S_1, C]
+            return_attn (bool): whether to return attention map
+
+        Returns:
+            new_x (torch.Tensor): [B, S_2, C], S_2 is the new number of
+                group tokens
+        """
+        group_tokens = self.norm_tokens(self.group_tokens)
+        x = self.norm_x(x)
+        # [B, S_2, C]
+        projected_group_tokens = self.project_group_token(group_tokens)
+        projected_group_tokens, _ = self.pre_assign_attn(projected_group_tokens, x)
+        new_x, attn_dict = self.assign(projected_group_tokens, x)
+        new_x += projected_group_tokens
+
+        new_x = self.reduction(new_x) + self.mlp_channels(self.norm_new_x(new_x))
+
+        return new_x, attn_dict
+
 
 # ————————————————————————————————————Pooling method————————————————————————————————————
 class MeanPooling(nn.Module):

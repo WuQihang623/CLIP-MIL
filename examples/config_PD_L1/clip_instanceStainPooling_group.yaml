@@ -1,27 +1,20 @@
 model:
   feat_dim: 512
-  num_classes: 4
+  num_classes: 3
   text_enc_name: ViT-B/32
   pooling_method: instance_stain
+  fusion: group
   use_CoOP: true
   device: cuda
-  ensemble: true
-  attention: assign
 
   template: "an immunohistochemical pathological image of"
   instance_descriptions:
-    "invasive cancer region":
+    "cancer region":
       - "high cell density with minimal spacing between cancer cells"
       - "significant nuclear pleomorphism with varying nuclear sizes"
       - "invasive margins visible, with cancer cells extending into surrounding tissues"
       - "increased mitotic figures indicating active cell division"
       - "disordered arrangement of cancer cells with chaotic structure"
-    "in situ cancer region":
-      - "cancer cells confined within ducts or lobules"
-      - "relatively uniform cell morphology with minimal nuclear pleomorphism"
-      - "clear ductal or lobular structures without evident destruction"
-      - "rare mitotic figures, indicating low cell division activity"
-      - "intact basement membrane with no signs of invasion"
     "normal epithelial tissue":
       - "cells arranged in an orderly and regular structure"
       - "moderate cell density with uniform spacing"
@@ -80,14 +73,12 @@ model:
       - "prominent staining signals, with cell membrane structures clearly visible"
 
   bag_descriptions:
-    "HER2 Score 0":
-      - "no staining, or membrane staining in < 10 % of tumor cells that is incomplete and faint / barely perceptible"
-    "HER2 Score 1 +":
-      - "incomplete membrane staining that is faint / barely perceptible and involves > 10 % of tumor cells"
-    "HER2 Score 2 +":
-      - "complete membrane staining that is weak / moderate and involves > 10 % of tumor cells, or intense staining in < 10 % of tumor cells"
-    "HER2 Score 3 +":
-      - "strong and complete membrane staining in > 10 % of tumor cells"
+    "PD-L1 not expressed":
+      - "cell membrane without staining, no significant staining difference between tumor cells and surrounding stromal cells"
+    "PD-L1 moderate expressed":
+      - "weak staining of cell membrane with limited staining area, a small number of cell membranes stained light brown"
+    "PD-L1 highly expressed":
+      - "strong staining of cell membrane with extensive staining area, a large number of cell membranes stained dark brown"
 
 batch_size: 1
 num_workers: 4
@@ -100,4 +91,4 @@ scheduler:
   eta_min: 1.0e-7
 n_epochs: 100
 seed: 42
-early_stop: 10
+early_stop: 20

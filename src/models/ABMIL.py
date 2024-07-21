@@ -122,7 +122,7 @@ class ABMIL(nn.Module):
         logits = self.classifier(M)
         Y_hat = torch.argmax(logits, dim=1)
         Y_prob = F.softmax(logits, dim=1)
-        return {'logits': logits, "A": o_A, 'Y_prob': Y_prob, 'Y_hat': Y_hat}
+        return {'logits': logits, "A": o_A, 'Y_prob': Y_prob, 'Y_hat': Y_hat, "features": M.view(1, -1)}
 
 if __name__ == '__main__':
     data = torch.randn((1, 3000, 2048))

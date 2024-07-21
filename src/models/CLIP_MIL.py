@@ -164,9 +164,15 @@ class CLIP_MIL(nn.Module):
         elif self.pooling_method == "instance_stain":
             self.instance_descriptions = kwargs["instance_descriptions"]
             self.stain_descriptions = kwargs["stain_descriptions"]
+            self.fusion = kwargs.get("fusion", "concat")
             self.instance_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4, attention=attention)
             self.stain_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4, attention=attention)
-            self.fc = nn.Linear(in_features=2*feat_dim, out_features=feat_dim)
+            if self.fusion == "concat":
+                self.fc = nn.Linear(in_features=2*feat_dim, out_features=feat_dim)
+            elif self.fusion == "group":
+                self.fusion_block = GroupingBlock(dim=feat_dim, num_heads=1, num_group_token=4, num_output_group=1)
+            else:
+                raise ValueError("Unknown fusion method: {}".format(self.fusion))
         else:
             raise ValueError("Unknown pooling method: {}".format(pooling_method))
 
@@ -204,7 +210,8 @@ class CLIP_MIL(nn.Module):
         # image_features: [1, N, dim]
         output_dict = {}
 
-        ensemble = self.ensemble & (not self.training)
+        # ensemble = self.ensemble & (not self.training)
+        ensemble = self.ensemble
 
         bag_prompts = self._text_encoder(self.bag_descriptions, ensemble)
 
@@ -233,11 +240,20 @@ class CLIP_MIL(nn.Module):
             stain_prompts = self._text_encoder(self.stain_descriptions, ensemble).unsqueeze(0)
             stain_features, stain_attn = self.stain_pooling(stain_prompts, image_features)
 
-            wsi_feature = torch.cat([
-                torch.mean(cls_features.squeeze(0), dim=0, keepdim=True),
-                torch.mean(stain_features.squeeze(0), dim=0, keepdim=True)
-            ], dim=-1)
-            wsi_feature = self.fc(wsi_feature)
+            if self.fusion == "concat":
+                wsi_feature = torch.cat([
+                    torch.mean(cls_features.squeeze(0), dim=0, keepdim=True),
+                    torch.mean(stain_features.squeeze(0), dim=0, keepdim=True)
+                ], dim=-1)
+                wsi_feature = self.fc(wsi_feature)
+            elif self.fusion == "group":
+                wsi_feature = torch.cat([
+                    cls_features, stain_features
+                ], dim=1)
+                wsi_feature, fusion_attn_dict = self.fusion_block(wsi_feature)
+                wsi_feature = torch.mean(wsi_feature.squeeze(0), dim=0, keepdim=True)
+            else:
+                raise ValueError("Unknown fusion method: {}".format(self.fusion))
             output_dict["inst_attn"] = cls_attn
             output_dict["stain_attn"] = stain_attn
         else:
@@ -246,11 +262,12 @@ class CLIP_MIL(nn.Module):
         logit_scale = self.logit_scale.exp()
         logits = self._apply_consine_similarity(wsi_feature, bag_prompts, logit_scale) # [1, classes]
         output_dict["logits"] = logits
+        output_dict["features"] = wsi_feature
         return output_dict
 
 if __name__ == '__main__':
     import yaml
-    with open("/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_abmilpooling.yaml", 'r') as f:
+    with open("/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_instanceStainPooling_group.yaml", 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
         f.close()
     model = CLIP_MIL(

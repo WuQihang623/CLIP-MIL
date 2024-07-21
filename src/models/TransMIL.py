@@ -310,7 +310,7 @@ class TransMIL(nn.Module):
         logits = self._fc2(h)  # [B, n_classes]
         Y_hat = torch.argmax(logits, dim=1)
         Y_prob = F.softmax(logits, dim=1)
-        results_dict = {'logits': logits, 'Y_prob': Y_prob, 'Y_hat': Y_hat}
+        results_dict = {'logits': logits, 'Y_prob': Y_prob, 'Y_hat': Y_hat, "features": h.view(1, -1)}
 
         if return_attn:
             attn = (torch.mean(attn1.cpu(), dim=1) + torch.mean(attn2.cpu(), dim=1)) / 2

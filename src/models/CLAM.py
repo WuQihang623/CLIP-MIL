@@ -276,14 +276,7 @@ class CLAM_MB(CLAM_SB):
             logits[0, c] = self.classifiers[c](M[c])
         Y_hat = torch.topk(logits, 1, dim=1)[1]
         Y_prob = F.softmax(logits, dim=1)
-        if instance_eval:
-            results_dict = {'instance_loss': total_inst_loss, 'inst_labels': np.array(all_targets),
-                            'inst_preds': np.array(all_preds)}
-        else:
-            results_dict = {}
-        if return_features:
-            results_dict.update({'features': M})
-        return {'logits': logits, "A": A_raw, 'Y_prob': Y_prob, 'Y_hat': Y_hat}
+        return {'logits': logits, "A": A_raw, 'Y_prob': Y_prob, 'Y_hat': Y_hat, "features": M.view(1, -1)}
 
 if __name__ == '__main__':
     data = torch.randn((3000, 1024))
