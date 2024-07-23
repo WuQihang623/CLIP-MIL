@@ -19,7 +19,7 @@ class dataset_MIL(Dataset):
         patient_id = self.patient_ids[idx]
         feat_path = os.path.join(self.feat_dir, patient_id + ".pt")
         feat = torch.load(feat_path, map_location="cpu")
-        label = self.label[idx]
+        label = int(self.label[idx])
         return feat, label
 
 

@@ -8,7 +8,7 @@ import math
 import openslide
 import numpy as np
 from PIL import Image
-from skimage import morphology
+from skimage import morphology, exposure
 import matplotlib.pyplot as plt
 from scipy.ndimage import binary_fill_holes
 
@@ -90,7 +90,7 @@ class WholeSlideImage(object):
         save_pkl(mask_file, asset_dict)
 
     def segmentTissue(self, seg_level=0, sthresh=20, sthresh_up=255, mthresh=7, close=0, use_otsu=False,
-                      filter_params={'a_t': 100}, ref_patch_size=512, exclude_ids=[], keep_ids=[], ann_path=None):
+                      filter_params={'a_t': 100}, ref_patch_size=512, exclude_ids=[], keep_ids=[], ann_path=None, remove_control:bool=True):
         """
             Segment the tissue via HSV -> Median thresholding -> Binary threshold
         """
@@ -144,25 +144,33 @@ class WholeSlideImage(object):
 
         img = np.array(self.wsi.read_region((0, 0), seg_level, self.level_dim[seg_level]))
         wsi_mask = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        wsi_mask = cv2.equalizeHist(wsi_mask)
-        wsi_mask = cv2.GaussianBlur(wsi_mask, (11, 11), 0)
-        _, thresh_img = cv2.threshold(wsi_mask, sthresh, 255, cv2.THRESH_OTSU)
+        # wsi_mask = cv2.equalizeHist(wsi_mask)
+        # wsi_mask = cv2.GaussianBlur(wsi_mask, (11, 11), 0)
+
+        wsi_mask =  cv2.GaussianBlur(wsi_mask, (11, 11), 0)
+        # p1, p2 = np.percentile(wsi_mask, (5, 95))
+        # print(f"p1: {p1} \n p2: {p2}")
+        wsi_mask = exposure.rescale_intensity(wsi_mask, in_range=(210, 230))
+
+        _, thresh_img = cv2.threshold(wsi_mask, sthresh, sthresh_up, cv2.THRESH_OTSU)
         img_otsu = 255 - thresh_img
 
         # Morphological closing
         if close > 0:
             kernel = np.ones((close, close), np.uint8)
             img_otsu = cv2.morphologyEx(img_otsu, cv2.MORPH_CLOSE, kernel)
-        img_otsu = binary_fill_holes(img_otsu)
-        img_otsu = morphology.remove_small_objects(img_otsu, min_size=64*64, connectivity=2)
+        # img_otsu = binary_fill_holes(img_otsu)
+        img_otsu = morphology.remove_small_objects(img_otsu, min_size=16*16, connectivity=2)
         img_otsu = (img_otsu * 1).astype("uint8")
         if ann_path is None:
             print(f"{self.name}没有标注阳性对照组")
         elif not os.path.exists(ann_path):
             print(f"{self.name}阳性对照组的标注{ann_path}路径不存在")
         else:
-            img_otsu = self.remove_positive_object(img_otsu, int(self.level_downsamples[seg_level][0]), ann_path)
-
+            if remove_control:
+                img_otsu = self.remove_positive_object(img_otsu, int(self.level_downsamples[seg_level][0]), ann_path)
+            else:
+                img_otsu = self.extract_tissue_object(img_otsu, int(self.level_downsamples[seg_level][0]), ann_path)
         scale = self.level_downsamples[seg_level]
         scaled_ref_patch_area = int(ref_patch_size ** 2 / (scale[0] * scale[1]))
         filter_params = filter_params.copy()
@@ -198,10 +206,39 @@ class WholeSlideImage(object):
             if contour_dict["tool"] != "矩形" or contour_dict["type"] != "阳性对照组":
                 continue
             location = contour_dict['location']
-            x1, y1 = location[0]
-            x2, y2 = location[1]
+            x1 = min(location[0][0], location[1][0])
+            x2 = max(location[0][0], location[1][0])
+            y1 = min(location[0][1], location[1][1])
+            y2 = max(location[0][1], location[1][1])
+
             x1, x2, y1, y2 = int(x1 / downsample), int(x2 / downsample), int(y1 / downsample), int(y2 / downsample)
             img_otsu[y1: y2, x1: x2] = 0
+            print(f"positive contour: {x1, y1, x2, y2}")
+        return img_otsu
+
+    def extract_tissue_object(self, img_otsu, downsample, ann_path=None):
+        import json
+        if ann_path is None:
+            return img_otsu
+        with open(ann_path, 'r', encoding="gbk") as f:
+            ann = json.load(f)
+            f.close()
+        mask = np.zeros_like(img_otsu, dtype=np.uint8)
+        for _, contour_dict in ann["annotation"].items():
+            print(contour_dict["tool"], contour_dict["type"])
+            if contour_dict["tool"] != "矩形" or contour_dict["type"] != "组织区域":
+                continue
+            location = contour_dict['location']
+            x1 = min(location[0][0], location[1][0])
+            x2 = max(location[0][0], location[1][0])
+            y1 = min(location[0][1], location[1][1])
+            y2 = max(location[0][1], location[1][1])
+
+            x1, x2, y1, y2 = int(x1 / downsample), int(x2 / downsample), int(y1 / downsample), int(y2 / downsample)
+            mask[y1: y2, x1: x2] = 1
+
+            print(f"tissue contour: {x1, y1, x2, y2}")
+        img_otsu = mask * img_otsu
         return img_otsu
 
     def visWSI(self, vis_level=0, color=(0, 255, 0), hole_color=(0, 0, 255), annot_color=(255, 0, 0),

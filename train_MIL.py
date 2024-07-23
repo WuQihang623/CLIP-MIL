@@ -25,7 +25,7 @@ def main(args):
     target_list = [] # 测试集的真实标签
     start = time.time()
     logger = get_logger(args.log_name, os.path.join(args.save_dir, "result.log"))
-    for k in range(5):
+    for k in range(args.fold):
         logger.info(f"-----------第{k}fold开始训练------------")
         csv_path = os.path.join(args.fold_dir, f"fold_{k}.csv")
         train_set = dataset_MIL(csv_path=csv_path, feat_dir=args.feat_dir, mode="train")
@@ -61,7 +61,8 @@ def main(args):
         scheduler = StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
 
         checkpoint_path = os.path.join(args.save_dir, f'model_fold{k}.pth')
-        best_acc = 0
+        best_f1 = 0
+        best_loss = 100
         patience = args.early_stop
         now_patience = 0
         for epoch in range(args.n_epochs):
@@ -70,9 +71,10 @@ def main(args):
             logger.info(f"Epoch: {epoch}, train_loss: {train_loss:.3f}, train_err: {train_err:.3f}, val_loss: {val_loss:.3f}, val_acc: {val_acc:.3f}, val_f1: {val_f1:.3f}, val_precision: {val_precision:.3f}, val_recall: {val_recall:.3f}")
             scheduler.step()
 
-            if best_acc < val_acc:
+            if best_f1 < val_f1 or (best_f1 == val_f1 and best_loss > val_loss):
                 now_patience = 0
-                best_acc = val_acc
+                best_f1 = val_f1
+                best_loss = val_loss if best_loss > val_loss else best_loss
                 torch.save(model.state_dict(), checkpoint_path)
                 logger.info("saving model")
             else:
@@ -109,6 +111,7 @@ def get_args():
     parser.add_argument('--seed', type=int, default=2022)
     parser.add_argument('--model_name', type=str, default='CLAM_SB', choices=['CLAM_SB', 'CLAM_MB', 'ABMIL', 'TransMIL'])
     parser.add_argument('--n_classes', type=int, default=3)
+    parser.add_argument('--fold', type=int, default=5)
     parser.add_argument('--feature_dim', type=int, default=1024, help='patch image feature dimension')
     parser.add_argument('--device', type=str, default="cuda")
     parser.add_argument('--feat_dir', type=str, default="")

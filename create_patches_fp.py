@@ -19,7 +19,7 @@ def stitching(file_path, wsi_object, downscale=64):
     return heatmap, total_time
 
 
-def segment(WSI_object, seg_params=None, filter_params=None, mask_file=None, ann_path=None):
+def segment(WSI_object, seg_params=None, filter_params=None, mask_file=None, ann_path=None, remove_control=True):
     ### Start Seg Timer
     start_time = time.time()
     # Use segmentation file
@@ -27,7 +27,7 @@ def segment(WSI_object, seg_params=None, filter_params=None, mask_file=None, ann
         WSI_object.initSegmentation(mask_file)
     # Segment
     else:
-        WSI_object.segmentTissue(**seg_params, filter_params=filter_params, ann_path=ann_path)
+        WSI_object.segmentTissue(**seg_params, filter_params=filter_params, ann_path=ann_path, remove_control=remove_control)
 
     ### Stop Seg Timers
     seg_time_elapsed = time.time() - start_time
@@ -57,7 +57,7 @@ def seg_and_patch(source, save_dir, patch_save_dir, mask_save_dir, stitch_save_d
                   use_default_params=False,
                   seg=False, save_mask=True,
                   stitch=False,
-                  patch=False, auto_skip=True, process_list=None):
+                  patch=False, auto_skip=True, process_list=None, remove_control=True):
     slides_paths = sorted(glob.glob(source))
     slides = [os.path.basename(path) for path in slides_paths]
 
@@ -96,7 +96,7 @@ def seg_and_patch(source, save_dir, patch_save_dir, mask_save_dir, stitch_save_d
         df.loc[idx, 'process'] = 0
         slide_id, _ = os.path.splitext(slide)
 
-        if auto_skip and os.path.isfile(os.path.join(patch_save_dir, slide_id + '.h5')):
+        if auto_skip and os.path.isfile(os.path.join(mask_save_dir, slide_id + '.jpg')):
             print('{} already exist in destination location, skipped'.format(slide_id))
             df.loc[idx, 'status'] = 'already_exist'
             continue
@@ -186,7 +186,7 @@ def seg_and_patch(source, save_dir, patch_save_dir, mask_save_dir, stitch_save_d
         ann_path = os.path.join(args.ann_positive, slide_name + "_annotation.json")
         seg_time_elapsed = -1
         if seg:
-            WSI_object, seg_time_elapsed = segment(WSI_object, current_seg_params, current_filter_params, ann_path=ann_path)
+            WSI_object, seg_time_elapsed = segment(WSI_object, current_seg_params, current_filter_params, ann_path=ann_path, remove_control=remove_control)
 
         if save_mask:
             mask = WSI_object.visWSI(**current_vis_params)
@@ -247,7 +247,8 @@ def get_args():
                         help='downsample level at which to patch')
     parser.add_argument('--process_list', type=str, default=None,
                         help='name of list of images to process with parameters (.csv)')
-    parser.add_argument('--ann_positive', type=str, default="/home/auwqh/dataset/PDL1/meta_data/Testing/ann_positive/")
+    parser.add_argument('--ann_positive', type=str, default="")
+    parser.add_argument("--remove_control", default=True, action="store_false")
     args = parser.parse_args()
     return args
 
@@ -284,7 +285,7 @@ if __name__ == '__main__':
             os.makedirs(val, exist_ok=True)
 
 
-    seg_params = {'seg_level': -1, 'sthresh': 8, 'mthresh': 7, 'close': 4, 'use_otsu': False,
+    seg_params = {'seg_level': -1, 'sthresh': 245, 'mthresh': 7, 'close': 4, 'use_otsu': False,
                   'keep_ids': 'none', 'exclude_ids': 'none'}
     filter_params = {'a_t': 20, 'a_h': 16, 'max_n_holes': 8}
     vis_params = {'vis_level': -1, 'line_thickness': 250}
@@ -310,10 +311,10 @@ if __name__ == '__main__':
                   'vis_params': vis_params}
 
     print(parameters)
-
+    print("remove_control", args.remove_control)
     seg_times, patch_times = seg_and_patch(**directories, **parameters,
                                            patch_size=args.patch_size, step_size=args.step_size,
                                            seg=args.seg, use_default_params=False, save_mask=True,
                                            stitch=args.stitch,
                                            patch_level=args.patch_level, patch=args.patch,
-                                           process_list=process_list, auto_skip=args.no_auto_skip)
+                                           process_list=process_list, auto_skip=args.no_auto_skip, remove_control=args.remove_control)

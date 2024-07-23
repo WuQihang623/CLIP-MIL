@@ -30,7 +30,7 @@ def main(config):
     prediction_list = []  # 测试集的模型预测结果
     target_list = []  # 测试集的真实标签
     logger = get_logger(config["log_name"], os.path.join(config["save_dir"], "result.log"))
-    for k in range(5):
+    for k in range(args.fold):
         logger.info(f"-----------Fold {k}-----------")
         csv_path = os.path.join(config["fold_dir"], f"fold_{k}.csv")
         train_set = dataset_CLIP_MIL(csv_path, config["feat_dir"], "train")
@@ -95,6 +95,7 @@ def main(config):
 
         checkpoint_path = os.path.join(args.save_dir, f'model_fold{k}.pth')
         best_f1 = 0
+        best_loss = 100
         patience = config["early_stop"]
         now_patience = 0
         loss_fn = MIL_Loss()
@@ -108,9 +109,10 @@ def main(config):
             current_lr = optimizer.param_groups[0]['lr']
             logger.info(f"Epoch: {epoch} | train_loss: {train_loss:.3f} | train_err: {train_err:.3f} | val_loss: {val_loss:.3f} | val_acc: {val_acc:.3f} |\nEpoch: {epoch} | val_f1: {val_f1:.3f} | val_precision: {val_precision:.3f} | val_recall: {val_recall:.3f} | lr: {current_lr:.9f}")
 
-            if best_f1 < val_f1:
+            if best_f1 < val_f1 or (best_f1 == val_f1 and best_loss > val_loss):
                 now_patience = 0
                 best_f1 = val_f1
+                best_loss = val_loss if best_loss > val_loss else best_loss
                 torch.save(model.state_dict(), checkpoint_path)
                 logger.info("saving model")
             else:
@@ -145,6 +147,7 @@ def main(config):
 def get_args():
     parser = argparse.ArgumentParser(description="Train CLIP MIL model")
     parser.add_argument('--config', type=str, default='/home/auwqh/code/CLIP-MIL/examples/config/clip_mil_vit_b32_no_descrip.yaml', help='Path to config file')
+    parser.add_argument('--fold', type=int, default=5)
     parser.add_argument('--save_dir', type=str, default='/home/auwqh/code/CLIP-MIL/save_weights/PDL1', help='Path to save results')
     parser.add_argument('--log_name', type=str, default='CLIP_MIL_VITB32_v2', help='Name of log file')
     parser.add_argument('--feat_dir', type=str, default="/home/auwqh/dataset/PDL1/meta_data/Testing/patch/clip_ViTB32/pt_files/")
