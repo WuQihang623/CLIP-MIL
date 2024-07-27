@@ -210,8 +210,8 @@ class CLIP_MIL(nn.Module):
         # image_features: [1, N, dim]
         output_dict = {}
 
-        ensemble = self.ensemble & (not self.training)
-        # ensemble = self.ensemble
+        # ensemble = self.ensemble & (not self.training)
+        ensemble = self.ensemble
 
         bag_prompts = self._text_encoder(self.bag_descriptions, ensemble)
 

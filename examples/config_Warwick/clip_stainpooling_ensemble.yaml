@@ -1,0 +1,102 @@
+model:
+  feat_dim: 512
+  num_classes: 4
+  text_enc_name: ViT-B/32
+  pooling_method: stain
+  use_CoOP: false
+  device: cuda
+  ensemble: true
+
+  template: "an immunohistochemical pathological image of"
+  instance_descriptions:
+    "invasive cancer region":
+      - "high cell density with minimal spacing between cancer cells"
+      - "significant nuclear pleomorphism with varying nuclear sizes"
+      - "invasive margins visible, with cancer cells extending into surrounding tissues"
+      - "increased mitotic figures indicating active cell division"
+      - "disordered arrangement of cancer cells with chaotic structure"
+    "in situ cancer region":
+      - "cancer cells confined within ducts or lobules"
+      - "relatively uniform cell morphology with minimal nuclear pleomorphism"
+      - "clear ductal or lobular structures without evident destruction"
+      - "rare mitotic figures, indicating low cell division activity"
+      - "intact basement membrane with no signs of invasion"
+    "normal epithelial tissue":
+      - "cells arranged in an orderly and regular structure"
+      - "moderate cell density with uniform spacing"
+      - "consistent nuclear size with minimal pleomorphism"
+      - "rare mitotic figures, indicating normal cell growth"
+      - "uniform cell morphology with no evident abnormalities"
+    "immune tissue":
+      - "presence of extensive lymphocyte infiltration"
+      - "densely packed lymphocytes, small and round cells"
+      - "presence of macrophages and plasma cells in some areas"
+      - "pinimal interstitial space with tight cell spacing"
+      - "small, dense nuclei with minimal pleomorphism"
+    "stromal Region":
+      - "proliferation of fibrous tissue with numerous fibroblasts"
+      - "abundant collagen fibers within the stroma"
+      - "numerous blood vessels with uniform vessel wall thickness"
+      - "low cell density with wide cell spacing"
+      - "diverse cell morphology including fibroblasts and a few immune cells"
+    "necrotic region":
+      - "destruction of cell structure with loss or coagulation of nuclei"
+      - "disordered tissue architecture with no regular arrangement"
+      - "presence of cell debris and necrotic remnants"
+      - "no cellular activity, absence of mitotic figures"
+      - "uneven tissue staining with dull coloration"
+    "background":
+      - "absence of cells, only stained background visible"
+      - "uniform staining with no obvious spots"
+      - "clear background with no interfering artifacts"
+      - "light coloration, no strongly positive staining areas"
+      - "low image noise with good display quality"
+
+  stain_descriptions:
+    "no cell membrane staining":
+      - "no apparent staining on cell membranes, with clear background staining"
+      - "blurred cell membrane boundaries, difficult to distinguish"
+      - "nuclear staining is visible, but cell membranes show no staining"
+      - "absence of staining signals on cell membranes, indicating negative results"
+      - "no noticeable staining spots or positive areas"
+    "weak cell membrane staining":
+      - "slight staining on cell membranes, with light coloration"
+      - "faint brownish-yellow staining visible on some cell membranes"
+      - "uneven staining, with weak staining in some areas"
+      - "discontinuous staining on cell membranes with intermittent gaps"
+      - "low staining intensity, easily confused with the background"
+    "moderate cell membrane staining":
+      - "noticeable staining on cell membranes with moderate coloration"
+      - "uniform brownish-yellow staining visible on most cell membranes"
+      - "relatively even staining with moderate intensity"
+      - "continuous staining on cell membranes with clearly visible structure"
+      - "distinct staining signals, easily distinguishable from the background"
+    "strong cell membrane staining":
+      - "intense staining on cell membranes with deep brown coloration"
+      - "all cell membranes exhibit clear staining signals"
+      - "very uniform staining with high intensity"
+      - "continuous staining on cell membranes with no interruptions, clear boundaries"
+      - "prominent staining signals, with cell membrane structures clearly visible"
+
+  bag_descriptions:
+    "HER2 Score 0":
+      - "no staining, or membrane staining in < 10 % of tumor cells that is incomplete and faint / barely perceptible"
+    "HER2 Score 1 +":
+      - "incomplete membrane staining that is faint / barely perceptible and involves > 10 % of tumor cells"
+    "HER2 Score 2 +":
+      - "complete membrane staining that is weak / moderate and involves > 10 % of tumor cells, or intense staining in < 10 % of tumor cells"
+    "HER2 Score 3 +":
+      - "strong and complete membrane staining in > 10 % of tumor cells"
+
+batch_size: 1
+num_workers: 4
+lr: 0.0001
+scheduler:
+  warmup_steps: 200
+  base_lr: 1.0e-6
+  max_lr: 1.0e-4
+  T_max: 200
+  eta_min: 1.0e-7
+n_epochs: 100
+seed: 42
+early_stop: 20
