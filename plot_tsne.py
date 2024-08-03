@@ -47,7 +47,7 @@ def plot_tsne(feature, labels, save_path):
     print(labels.shape)
 
     # t-SNE降维
-    tsne = TSNE(n_components=2, random_state=42)
+    tsne = TSNE(n_components=2, random_state=42, perplexity=min(30, labels.shape[0] / 1.2))
     tsne_results = tsne.fit_transform(feature)
 
     print(tsne_results.shape)
@@ -68,8 +68,9 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default="TransMIL", choices=["ABMIL", "CLAM", "TransMIL", "CLIPMIL"])
     parser.add_argument('--config', type=str, default="/home/auwqh/code/CLIP-MIL/examples/config_PD_L1/clip_instancepooling_ensemble.yaml")
-    parser.add_argument('--num_classes', type=int, default=3)
+    parser.add_argument('--num_classes', type=int, default=4)
     parser.add_argument("--feat_dim", type=int, default=512)
+    parser.add_argument('--fold', type=int, default=1)
     parser.add_argument('--checkpoint_dir', type=str, default="/home/auwqh/code/CLIP-MIL/save_weights/PDL1/TransMIL_clip_ViTB32_weights")
     parser.add_argument('--device', type=str, default="cuda")
     parser.add_argument('--csv_dir', type=str, default="/home/auwqh/code/CLIP-MIL/data/PDL1_fold")
@@ -100,7 +101,7 @@ if __name__ == '__main__':
 
     features = []
     labels = []
-    for fold in range(5):
+    for fold in range(args.fold):
         checkpoint_path = os.path.join(args.checkpoint_dir, f"model_fold{fold}.pth")
         model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
 

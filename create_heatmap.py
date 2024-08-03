@@ -12,6 +12,9 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 import matplotlib.pyplot as plt
+from src.models.ABMIL import ABMIL
+from src.models.CLAM import CLAM_MB
+from src.models.TransMIL import TransMIL
 from src.models.CLIP_MIL import CLIP_MIL
 
 def to_percentiles(scores):
@@ -20,12 +23,12 @@ def to_percentiles(scores):
     return result
 
 @torch.no_grad()
-def creat_heatmap(model, cls_names, wsi_names, wsi_dir, h5_dir, save_dir, device, descriptions="instance", patch_size=512):
+def creat_heatmap(model, cls_names, wsi_names, wsi_dir, h5_dir, save_dir, device, descriptions="instance", patch_size=512, ext=".tiff"):
     os.makedirs(save_dir, exist_ok=True)
     cmap = plt.get_cmap("jet")
     for wsi_name in wsi_names:
         h5_path = os.path.join(h5_dir, wsi_name + '.h5')
-        wsi_path = os.path.join(wsi_dir, wsi_name + '.tiff')
+        wsi_path = os.path.join(wsi_dir, wsi_name + ext)
 
         h5_file = h5py.File(h5_path, 'r')
         coords = np.array(h5_file["coords"], dtype=np.int64)
@@ -36,6 +39,9 @@ def creat_heatmap(model, cls_names, wsi_names, wsi_dir, h5_dir, save_dir, device
         level = slide.get_best_level_for_downsample(64)
         dimension = slide.level_dimensions[level]
         heatmap_downsample = int(slide.level_downsamples[level])
+
+        thumb = slide.read_region((0, 0), level, dimension).convert("RGB")
+        thumb = np.array(thumb, dtype=np.uint8)
 
         data = {
             "properties": {
@@ -58,7 +64,7 @@ def creat_heatmap(model, cls_names, wsi_names, wsi_dir, h5_dir, save_dir, device
         for cls_idx, cls_name in enumerate(cls_names):
             attn = attn_raw[cls_idx, :]
             attn = to_percentiles(attn)
-            heatmap = np.zeros(dimension, dtype=np.uint8)
+            heatmap = np.zeros((dimension[1], dimension[0]), dtype=np.uint8)
             ps = int(patch_size / heatmap_downsample)
             for i, prob in enumerate(attn):
                 coord = (coords[i] / heatmap_downsample).astype("int32")
@@ -70,6 +76,14 @@ def creat_heatmap(model, cls_names, wsi_names, wsi_dir, h5_dir, save_dir, device
             data["properties"]["heatmap_info"]["heatmap_info"].append(cls_name)
             data["heatmap_info"][cls_name] = heatmap
 
+            heatmap = (0.7 * thumb + 0.3 * heatmap).astype("uint8")
+            image_dir = os.path.join(save_dir, wsi_name)
+            os.makedirs(image_dir, exist_ok=True)
+            Image.fromarray(heatmap).save(os.path.join(image_dir, cls_name + ".png"))
+
+        image_dir = os.path.join(save_dir, wsi_name)
+        Image.fromarray(thumb).save(os.path.join(image_dir, "thumb.png"))
+
         save_path = os.path.join(save_dir, wsi_name + '.pkl')
         with open(save_path, 'wb') as f:
             pickle.dump(data, f)
@@ -78,18 +92,18 @@ def creat_heatmap(model, cls_names, wsi_names, wsi_dir, h5_dir, save_dir, device
         print(f"finish {wsi_name}")
 
 
-
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default="/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_instancepooling_ensemble.yaml")
-    parser.add_argument('--checkpoint_dir', type=str, default="/home/auwqh/code/CLIP-MIL/save_weights/HER2/clip_instancepooling_ensemble1")
-    parser.add_argument('--description', type=str, default="instance", choices=["instance", "stain"])
+    parser.add_argument('--config', type=str, default="")
+    parser.add_argument('--checkpoint_dir', type=str, default="")
+    parser.add_argument('--description', type=str, default="instance", choices=["instance", "stain", "None"])
     parser.add_argument('--device', type=str, default="cpu")
-    parser.add_argument('--csv_dir', type=str, default="/home/auwqh/code/CLIP-MIL/data/PDL1_fold")
+    parser.add_argument('--csv_dir', type=str, default="")
     parser.add_argument('--fold', type=int, default=0)
-    parser.add_argument('--wsi_dir', type=str, default="/home/auwqh/dataset/PDL1/meta_data/Testing/WSI/")
-    parser.add_argument('--h5_dir', type=str, default="/home/auwqh/dataset/PDL1/meta_data/Testing/patch/clip_ViTB32/h5_files/")
-    parser.add_argument('--save_dir', type=str, default="/home/auwqh/code/CLIP-MIL/heatmap/clip_mil_pdl1/clip_mil_instanceStainPooling_ensemble_her2weight")
+    parser.add_argument('--wsi_dir', type=str, default="")
+    parser.add_argument('--h5_dir', type=str, default="")
+    parser.add_argument('--save_dir', type=str, default="")
+    parser.add_argument('--ext', type=str, default=".ndpi")
 
     args = parser.parse_args()
     return args
@@ -103,17 +117,19 @@ if __name__ == '__main__':
 
     model = CLIP_MIL(**config["model"]).to(args.device)
     model.eval()
-    checkpoint_path = os.path.join(args.checkpoint_dir, f"model_fold{args.fold}.pth")
-    model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
 
-    csv_path = os.path.join(args.csv_dir, f"fold_{args.fold}.csv")
-    df = pd.read_csv(csv_path)
-    wsi_names = sorted(df["test"].dropna().tolist())
+    for fold in range(args.fold):
+        checkpoint_path = os.path.join(args.checkpoint_dir, f"model_fold{fold}.pth")
+        model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
 
-    if args.description == "instance":
-        cls_names = config["model"]["instance_descriptions"]
-    elif args.description == "stain":
-        cls_names = config["model"]["stain_descriptions"]
-    else:
-        raise ValueError("description must be instance or stain")
-    creat_heatmap(model, cls_names, wsi_names, args.wsi_dir, args.h5_dir, args.save_dir, args.device, args.description)
+        csv_path = os.path.join(args.csv_dir, f"fold_{fold}.csv")
+        df = pd.read_csv(csv_path)
+        wsi_names = sorted(df["test"].dropna().tolist())
+
+        if args.description == "instance":
+            cls_names = config["model"]["instance_descriptions"]
+        elif args.description == "stain":
+            cls_names = config["model"]["stain_descriptions"]
+        else:
+            raise ValueError("description must be instance or stain")
+        creat_heatmap(model, cls_names, wsi_names, args.wsi_dir, args.h5_dir, args.save_dir, args.device, args.description, ext=args.ext)

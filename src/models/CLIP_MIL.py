@@ -67,12 +67,13 @@ class PromptEmbedding(nn.Module):
             return embedding, eos_position
 
     def forward_CoOP(self, descriptions: dict, ensemble=False):
-        ctx = self.ctx_embedding
-        prefix = self.token_prefix
         if ensemble:
             embeddings = {}
             eos_postions = {}
             for cls_name, cls_descriptions in descriptions.items():
+                ctx = self.ctx_embedding
+                prefix = self.token_prefix
+
                 n = len(cls_descriptions)
                 if ctx.dim() == 2:
                     ctx = ctx.unsqueeze(0).expand(n, -1, -1)
@@ -98,6 +99,8 @@ class PromptEmbedding(nn.Module):
 
         else:
             n_classes = len(descriptions)
+            ctx = self.ctx_embedding
+            prefix = self.token_prefix
             if ctx.dim() == 2:
                 ctx = ctx.unsqueeze(0).expand(n_classes, -1, -1)
 
@@ -138,6 +141,9 @@ class CLIP_MIL(nn.Module):
             device: str,
             ensemble: bool = False,
             attention: str = "cross",
+            num_head: int = 1,
+            sample_method: str = "None",
+            visual_token: int = 0,
             **kwargs
     ):
         super(CLIP_MIL, self).__init__()
@@ -147,6 +153,15 @@ class CLIP_MIL(nn.Module):
         self.pooling_method = pooling_method
         self.bag_descriptions = bag_descriptions
         self.ensemble = ensemble
+        self.sample_method = sample_method
+        if self.sample_method != "None":
+            self.sample_ratio_min = kwargs["sample_ratio_min"]
+            self.sample_ratio_max = kwargs["sample_ratio_max"]
+        self.visual_tokens = None
+        if visual_token > 0:
+            self.visual_tokens = nn.Parameter(torch.zeros(1, visual_token, feat_dim))
+            self.norm_tokens = nn.LayerNorm(feat_dim)
+            nn.init.trunc_normal_(self.visual_tokens, std=.02)
 
         # set pooling method
         if pooling_method == "mean":
@@ -157,16 +172,16 @@ class CLIP_MIL(nn.Module):
             self.instance_pooling = Attn_Net_Gated(L=feat_dim, D=feat_dim)
         elif self.pooling_method == "instance":
             self.instance_descriptions = kwargs["instance_descriptions"]
-            self.instance_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4, attention=attention)
+            self.instance_pooling = CrossAttnBlock(dim=feat_dim, num_heads=num_head, attention=attention)
         elif self.pooling_method == "stain":
             self.stain_descriptions = kwargs["stain_descriptions"]
-            self.stain_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4, attention=attention)
+            self.stain_pooling = CrossAttnBlock(dim=feat_dim, num_heads=num_head, attention=attention)
         elif self.pooling_method == "instance_stain":
             self.instance_descriptions = kwargs["instance_descriptions"]
             self.stain_descriptions = kwargs["stain_descriptions"]
             self.fusion = kwargs.get("fusion", "concat")
-            self.instance_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4, attention=attention)
-            self.stain_pooling = CrossAttnBlock(dim=feat_dim, num_heads=4, attention=attention)
+            self.instance_pooling = CrossAttnBlock(dim=feat_dim, num_heads=num_head, attention=attention)
+            self.stain_pooling = CrossAttnBlock(dim=feat_dim, num_heads=num_head, attention=attention)
             if self.fusion == "concat":
                 self.fc = nn.Linear(in_features=2*feat_dim, out_features=feat_dim)
             elif self.fusion == "group":
@@ -206,14 +221,29 @@ class CLIP_MIL(nn.Module):
             embedding = self.text_encoder(prompts, eos_positions)
             return embedding
 
+    def sample(self, image_features):
+        B, N, D = image_features.shape
+        sample_ratio = random.uniform(self.sample_ratio_min, self.sample_ratio_max)
+        k = int(sample_ratio * N)
+        indices = torch.rand(B, N).argsort(dim=1)[:, :k]
+        batch_indices = torch.arange(B).unsqueeze(1).repeat(1, k)
+        image_features = image_features[batch_indices, indices, :]
+        return image_features
+
     def forward(self, image_features, return_attn=False):
         # image_features: [1, N, dim]
         output_dict = {}
 
-        # ensemble = self.ensemble & (not self.training)
         ensemble = self.ensemble
 
         bag_prompts = self._text_encoder(self.bag_descriptions, ensemble)
+
+        if self.training and self.sample_method != "None":
+            image_features = self.sample(image_features)
+
+        if self.visual_tokens is not None:
+
+
 
         if self.pooling_method == "mean":
             wsi_feature = self.instance_pooling(image_features)
@@ -267,7 +297,7 @@ class CLIP_MIL(nn.Module):
 
 if __name__ == '__main__':
     import yaml
-    with open("/home/auwqh/code/CLIP-MIL/examples/config_HER2/clip_instanceStainPooling_group.yaml", 'r') as f:
+    with open("/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_ensemble1.yaml", 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
         f.close()
     model = CLIP_MIL(

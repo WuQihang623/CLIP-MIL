@@ -47,11 +47,11 @@ cd ../
 
 
 #### PDL1
-srun python train_MIL.py --model_name "ABMIL" \
---feature_dim 512 --feat_dir "/home/auwqh/dataset/PDL1/meta_data/Testing/patch/clip_ViTB32/pt_files/" \
---fold_dir "/home/auwqh/code/CLIP-MIL/data/PDL1_fold" --batch_size 1 \
---n_epochs 50 --workers 4 --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/PDL1" \
---log_name "ABMIL_clip_ViTB32_weights" --lr 0.0001 --step_size 15 --gamma 0.1 --n_classes 3
+#srun python train_MIL.py --model_name "ABMIL" \
+#--feature_dim 512 --feat_dir "/home/auwqh/dataset/PDL1/meta_data/Testing/patch/clip_ViTB32/pt_files/" \
+#--fold_dir "/home/auwqh/code/CLIP-MIL/data/PDL1_fold" --batch_size 1 \
+#--n_epochs 50 --workers 4 --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/PDL1" \
+#--log_name "ABMIL_clip_ViTB32_weights" --lr 0.0001 --step_size 15 --gamma 0.1 --n_classes 3
 #
 #srun python train_MIL.py --model_name "ABMIL" \
 #--feature_dim 1024 --feat_dir "/home/auwqh/dataset/PDL1/meta_data/Testing/patch/resnet50_trunc/pt_files/" \
@@ -61,11 +61,11 @@ srun python train_MIL.py --model_name "ABMIL" \
 #
 #
 #
-srun python train_MIL.py --model_name "CLAM_MB" \
---feature_dim 512 --feat_dir "/home/auwqh/dataset/PDL1/meta_data/Testing/patch/clip_ViTB32/pt_files/" \
---fold_dir "/home/auwqh/code/CLIP-MIL/data/PDL1_fold/" --batch_size 1 \
---n_epochs 50 --workers 4 --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/PDL1" \
---log_name "CLAM_MB_clip_ViTB32_weights" --lr 0.0001 --step_size 15 --gamma 0.1 --n_classes 3
+#srun python train_MIL.py --model_name "CLAM_MB" \
+#--feature_dim 512 --feat_dir "/home/auwqh/dataset/PDL1/meta_data/Testing/patch/clip_ViTB32/pt_files/" \
+#--fold_dir "/home/auwqh/code/CLIP-MIL/data/PDL1_fold/" --batch_size 1 \
+#--n_epochs 50 --workers 4 --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/PDL1" \
+#--log_name "CLAM_MB_clip_ViTB32_weights" --lr 0.0001 --step_size 15 --gamma 0.1 --n_classes 3
 #
 #srun python train_MIL.py --model_name "CLAM_MB" \
 #--feature_dim 1024 --feat_dir "/home/auwqh/dataset/PDL1/meta_data/Testing/patch/resnet50_trunc/pt_files/" \
@@ -75,11 +75,11 @@ srun python train_MIL.py --model_name "CLAM_MB" \
 #
 #
 #
-srun python train_MIL.py --model_name "TransMIL" \
---feature_dim 512 --feat_dir "/home/auwqh/dataset/PDL1/meta_data/Testing/patch/clip_ViTB32/pt_files/" \
---fold_dir "/home/auwqh/code/CLIP-MIL/data/PDL1_fold/" --batch_size 1 \
---n_epochs 50 --workers 4 --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/PDL1" \
---log_name "TransMIL_clip_ViTB32_weights" --lr 0.0001 --step_size 15 --gamma 0.1 --n_classes 3
+#srun python train_MIL.py --model_name "TransMIL" \
+#--feature_dim 512 --feat_dir "/home/auwqh/dataset/PDL1/meta_data/Testing/patch/clip_ViTB32/pt_files/" \
+#--fold_dir "/home/auwqh/code/CLIP-MIL/data/PDL1_fold/" --batch_size 1 \
+#--n_epochs 50 --workers 4 --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/PDL1" \
+#--log_name "TransMIL_clip_ViTB32_weights" --lr 0.0001 --step_size 15 --gamma 0.1 --n_classes 3
 #
 #srun python train_MIL.py --model_name "TransMIL" \
 #--feature_dim 1024 --feat_dir "/home/auwqh/dataset/PDL1/meta_data/Testing/patch/resnet50_trunc/pt_files/" \

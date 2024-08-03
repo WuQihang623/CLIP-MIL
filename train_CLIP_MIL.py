@@ -9,6 +9,7 @@ import argparse
 import torch
 import numpy as np
 from torch.optim import Adam, SGD
+from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingLR, SequentialLR
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
@@ -17,7 +18,9 @@ from src.models.CLIP_MIL import CLIP_MIL
 from src.train_utils.logger import get_logger
 from src.datasets.dataset_CLIP_MIL import dataset_CLIP_MIL
 from src.train_utils.loss import MIL_Loss
+from src.train_utils.utils import save_yaml_ordered
 from src.clip_trainer import train_one_epoch, test_one_epoch
+from src.train_utils.plot_confusion import plot_confusion_matrix
 
 def main(config):
     def warmup_lr_lambda(current_step, warmup_steps, base_lr, max_lr):
@@ -126,8 +129,8 @@ def main(config):
         test_loss, test_acc, test_f1, test_precision, test_recall, test_preds_list, test_targets_list = test_one_epoch(
             model, test_loader, loss_fn, config["model"]["device"]
         )
-        prediction_list.extend(test_preds_list.reshape(-1).tolist())
-        target_list.extend(test_targets_list.reshape(-1).tolist())
+        prediction_list.extend(test_preds_list.tolist())
+        target_list.extend(test_targets_list.tolist())
 
     with open(os.path.join(config["save_dir"], "preds.json"), 'w') as f:
         f.write(json.dumps({"pred": prediction_list, "target": target_list}))
@@ -142,6 +145,9 @@ def main(config):
     logger.info(f"time: {end - start:.3f}")
 
     logger.info(f"acc: {acc:.3f}, F1: {F1:.3f}, precision: {precision:.3f}, recall: {recall:.3f}")
+
+    conf_matrix = confusion_matrix(target_list, prediction_list)
+    plot_confusion_matrix(conf_matrix, ["HER2 0", "HER2 1+", "HER2 2+", "HER2 3+"], save_path=os.path.join(args.save_dir, "confusion.png"))
 
 
 def get_args():
@@ -176,9 +182,7 @@ if __name__ == '__main__':
     args.save_dir = os.path.join(args.save_dir, args.log_name)
     os.makedirs(args.save_dir, exist_ok=True)
     config.update(vars(args))
-    with open(os.path.join(args.save_dir, "config.yaml"), "w") as f:
-        yaml.dump(config, f, default_flow_style=False)
-        f.close()
+    save_yaml_ordered(config, filename=os.path.join(args.save_dir, "config.yaml"))
 
     main(config)
 
