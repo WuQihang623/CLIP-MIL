@@ -116,87 +116,23 @@ cd ../
 #                              --feat_dir "/home/auwqh/dataset/WarwickHER2/patches_features_20x/clip_ViTB32/pt_files/" \
 #                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/Warwick"
 
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_ensemble1.yaml" \
-                              --log_name "clip_group_ensemble1" --fold 1 \
+srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_ensemble_vpt1.yaml" \
+                              --log_name "clip_group_ensemble_vpt1" --fold 1 \
                               --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/Warwick_HER2/clip_numhead(4)" \
                               --feat_dir "/home/auwqh/dataset/WarwickHER2/patches_features_20x/clip_ViTB32/pt_files/" \
                               --fold_dir "/home/auwqh/code/CLIP-MIL/data/Warwick"
 
+srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_ensemble_vpt10.yaml" \
+                              --log_name "clip_group_ensemble_vpt10" --fold 1 \
+                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/Warwick_HER2/clip_numhead(4)" \
+                              --feat_dir "/home/auwqh/dataset/WarwickHER2/patches_features_20x/clip_ViTB32/pt_files/" \
+                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/Warwick"
 
-### ZJY numhead(4)
-
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_instance.yaml" \
-#                              --log_name "clip_instance" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patches_features_20x/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_instance_sample.yaml" \
-#                              --log_name "clip_instance_sample" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patches_features_20x/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_instance_sample_ensemble.yaml" \
-#                              --log_name "clip_instance_sample_ensemble" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patches_features_20x/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_stain.yaml" \
-#                              --log_name "clip_stain" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patches_features_20x/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_stain_sample.yaml" \
-#                              --log_name "clip_stain_sample" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patches_features_20x/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_stain_sample_ensemble.yaml" \
-#                              --log_name "clip_stain_sample_ensemble" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patches_features_20x/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_concat.yaml" \
-#                              --log_name "clip_concat" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patches_features_20x/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_concat_sample.yaml" \
-#                              --log_name "clip_concat_sample" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patches_features_20x/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_concat_sample_ensemble.yaml" \
-#                              --log_name "clip_concat_sample_ensemble" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patches_features_20x/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group.yaml" \
-#                              --log_name "clip_group" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patches_features_20x/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_sample.yaml" \
-#                              --log_name "clip_group_sample" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patches_features_20x/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-#
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_sample_ensemble.yaml" \
-#                              --log_name "clip_group_sample_ensemble" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patches_features_20x/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
-
+srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_ensemble_vpt100.yaml" \
+                              --log_name "clip_group_ensemble_vpt100" --fold 1 \
+                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/Warwick_HER2/clip_numhead(4)" \
+                              --feat_dir "/home/auwqh/dataset/WarwickHER2/patches_features_20x/clip_ViTB32/pt_files/" \
+                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/Warwick"
 
 #### ZJY_old  numhead(4)
 
@@ -290,14 +226,26 @@ srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/confi
 #                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
 #                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
 #
-srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_ensemble.yaml" \
-                              --log_name "clip_group_ensemble" --fold 5 \
+#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_ensemble.yaml" \
+#                              --log_name "clip_group_ensemble" --fold 5 \
+#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2_old/clip_numhead(4)" \
+#                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
+#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
+
+srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_ensemble_vpt1.yaml" \
+                              --log_name "clip_group_ensemble_vpt1" --fold 5 \
                               --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2_old/clip_numhead(4)" \
                               --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
                               --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
 
-#srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_ensemble1.yaml" \
-#                              --log_name "clip_group_ensemble1" --fold 5 \
-#                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2_old/clip_numhead(4)" \
-#                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
-#                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
+srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_ensemble_vpt10.yaml" \
+                              --log_name "clip_group_ensemble_vpt10" --fold 5 \
+                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2_old/clip_numhead(4)" \
+                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
+                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"
+
+srun python train_CLIP_MIL.py --config "/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_ensemble_vpt100.yaml" \
+                              --log_name "clip_group_ensemble_vpt100" --fold 5 \
+                              --save_dir "/home/auwqh/code/CLIP-MIL/save_weights/ZJY_HER2_old/clip_numhead(4)" \
+                              --feat_dir "/home/auwqh/dataset/HER2/patch/clip_ViTB32/pt_files/" \
+                              --fold_dir "/home/auwqh/code/CLIP-MIL/data/HER2_fold"

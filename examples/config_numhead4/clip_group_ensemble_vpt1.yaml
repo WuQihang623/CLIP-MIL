@@ -1,15 +1,15 @@
 model:
   feat_dim: 512
   num_classes: 4
-  num_head: 8
+  num_head: 4
   text_enc_name: ViT-B/32
-  pooling_method: instance
+  pooling_method: instance_stain
+  fusion: group
   use_CoOP: true
   device: cuda
-  ensemble: false
-  sample_method: sample
-  sample_ratio_min: 0.5
-  sample_ratio_max: 1.0
+  ensemble: true
+  sample_method: None
+  visual_token: 1
 
   template: "an immunohistochemical pathological image of"
   instance_descriptions:

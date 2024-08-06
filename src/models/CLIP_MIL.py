@@ -242,7 +242,8 @@ class CLIP_MIL(nn.Module):
             image_features = self.sample(image_features)
 
         if self.visual_tokens is not None:
-
+            visual_tokens = self.norm_tokens(self.visual_tokens)
+            image_features = torch.concat([image_features, visual_tokens], dim=1)
 
 
         if self.pooling_method == "mean":
