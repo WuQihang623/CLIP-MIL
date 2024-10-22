@@ -19,7 +19,25 @@ wz=1
 cd ../
 
 CUDA_VISIBLE_DEVICES=0 srun python extract_feature_fp.py --enc_name clip_ViTB32 \
---data_root /home/auwqh/dataset/PDL1/meta_data/Testing/patches_features_20x/ \
---data_slide_dir /home/auwqh/dataset/PDL1/meta_data/Testing/WSI/ \
+--data_root /home/auwqh/dataset/HER2/patches_features_10x/ \
+--data_slide_dir /home/auwqh/dataset/HER2/WSI/Testing/WSI/ \
 --slide_ext ".tiff" \
---csv_path "/home/auwqh/dataset/PDL1/meta_data/Testing/patches_features_20x/process_list_autogen.csv"
+--csv_path "/home/auwqh/dataset/HER2/patches_features_10x/process_list_autogen.csv"
+
+CUDA_VISIBLE_DEVICES=0 srun python extract_feature_fp.py --enc_name clip_ViTB32 \
+--data_root /home/auwqh/dataset/HER2/patches_features_5x/ \
+--data_slide_dir /home/auwqh/dataset/HER2/WSI/Testing/WSI/ \
+--slide_ext ".tiff" \
+--csv_path "/home/auwqh/dataset/HER2/patches_features_5x/process_list_autogen.csv"
+
+#CUDA_VISIBLE_DEVICES=0 srun python extract_feature_fp.py --enc_name clip_ViTB32 \
+#--data_root /home/auwqh/dataset/WarwickHER2/patches_features_10x/ \
+#--data_slide_dir /home/auwqh/dataset/WarwickHER2/WSI/IHC/ \
+#--slide_ext ".ndpi" \
+#--csv_path "/home/auwqh/dataset/WarwickHER2/patches_features_10x/process_list_autogen.csv"
+#
+#CUDA_VISIBLE_DEVICES=0 srun python extract_feature_fp.py --enc_name clip_ViTB32 \
+#--data_root /home/auwqh/dataset/WarwickHER2/patches_features_5x/ \
+#--data_slide_dir /home/auwqh/dataset/WarwickHER2/WSI/IHC/ \
+#--slide_ext ".ndpi" \
+#--csv_path "/home/auwqh/dataset/WarwickHER2/patches_features_5x/process_list_autogen.csv"

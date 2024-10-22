@@ -1,0 +1,50 @@
+model:
+  feat_dim: 512
+  num_classes: 4
+  num_head: 4
+  text_enc_name: ViT-B/32
+  pooling_method: instance_stain
+  fusion: group
+  use_CoOP: true
+  device: cuda
+  ensemble: true
+  sample_method: None
+  template: an immunohistochemical pathological image of
+  instance_descriptions:
+    invasive cancer region:
+      - high cell density with minimal spacing between cancer cells
+      - significant nuclear pleomorphism with varying nuclear sizes
+      - invasive margins visible, with cancer cells extending into surrounding tissues
+      - increased mitotic figures indicating active cell division
+      - disordered arrangement of cancer cells with chaotic structure
+    immune tissue:
+      - presence of extensive lymphocyte infiltration
+      - densely packed lymphocytes, small and round cells
+      - presence of macrophages and plasma cells in some areas
+      - pinimal interstitial space with tight cell spacing
+      - small, dense nuclei with minimal pleomorphism
+    stromal Region:
+      - proliferation of fibrous tissue with numerous fibroblasts
+      - abundant collagen fibers within the stroma
+      - numerous blood vessels with uniform vessel wall thickness
+      - low cell density with wide cell spacing
+      - diverse cell morphology including fibroblasts and a few immune cells
+  stain_descriptions:
+    minimal staining:
+      - very faint blue nuclei and almost no discernible brown staining on the cell membranes
+    incomplete brown staining:
+      -  incomplete boundaries on some cell membranes.
+    noticeable brown staining:
+      - nearly all cell membranes completely surrounded and stained with high intensity.
+  bag_descriptions:
+    HER2 Score 0:
+    - no staining, or membrane staining in < 10 % of tumor cells that is incomplete
+      and faint / barely perceptible
+    HER2 Score 1 +:
+    - incomplete membrane staining that is faint / barely perceptible and involves
+      > 10 % of tumor cells
+    HER2 Score 2 +:
+    - complete membrane staining that is weak / moderate and involves > 10 % of tumor
+      cells, or intense staining in < 10 % of tumor cells
+    HER2 Score 3 +:
+    - strong and complete membrane staining in > 10 % of tumor cells

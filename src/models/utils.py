@@ -225,7 +225,6 @@ class AssignAttention(nn.Module):
                 attn = hard_softmax(attn, dim=attn_dim)
             else:
                 attn = F.softmax(attn, dim=attn_dim)
-
         return attn
 
     def forward(self, query, key=None, *, value=None):
@@ -407,6 +406,81 @@ class GroupingBlock(nn.Module):
         projected_group_tokens, _ = self.pre_assign_attn(projected_group_tokens, x)
         new_x, attn_dict = self.assign(projected_group_tokens, x)
         new_x += projected_group_tokens
+
+        new_x = self.reduction(new_x) + self.mlp_channels(self.norm_new_x(new_x))
+
+        return new_x, attn_dict
+
+class CrossFusion(nn.Module):
+    def __init__(self,
+                 dim,
+                 num_heads,
+                 num_group_token,
+                 num_output_group,
+                 norm_layer=nn.LayerNorm,
+                 mlp_ratio=(0.5, 4.0)):
+        super(CrossFusion, self).__init__()
+        self.dim = dim
+
+        self.group_tokens = nn.Parameter(torch.zeros(1, num_group_token, dim))
+        nn.init.trunc_normal_(self.group_tokens, std=.02)
+
+        # norm on group_tokens
+        self.norm_tokens = norm_layer(dim)
+        tokens_dim, channels_dim = [int(x * dim) for x in to_2tuple(mlp_ratio)]
+        self.mlp_inter = Mlp(num_group_token, tokens_dim, num_output_group)
+        self.norm_post_tokens = norm_layer(dim)
+        # norm on x
+        self.norm_x = norm_layer(dim)
+        self.pre_assign_attn = Attention(
+            dim=dim,
+            num_heads=num_heads,
+            qkv_bias=True,
+            identity=True
+        )
+
+        self.assign = CrossAttnBlock(
+            dim=dim,
+            num_heads=num_heads,
+            attention="cross",
+            qkv_bias=True)
+        self.norm_new_x = norm_layer(dim)
+        self.mlp_channels = Mlp(dim, channels_dim, dim)
+        self.reduction = nn.Identity()
+
+    def project_group_token(self, group_tokens):
+        """
+        Args:
+            group_tokens (torch.Tensor): group tokens, [B, S_1, C]
+
+        inter_weight (torch.Tensor): [B, S_2, S_1], S_2 is the new number of
+            group tokens, it's already softmaxed along dim=-1
+
+        Returns:
+            projected_group_tokens (torch.Tensor): [B, S_2, C]
+        """
+        # [B, S_2, C] <- [B, S_1, C]
+        projected_group_tokens = self.mlp_inter(group_tokens.transpose(1, 2)).transpose(1, 2)
+        projected_group_tokens = self.norm_post_tokens(projected_group_tokens)
+        return projected_group_tokens
+
+    def forward(self, x):
+        """
+        Args:
+            x (torch.Tensor): image tokens, [B, L, C]
+            group_tokens (torch.Tensor): group tokens, [B, S_1, C]
+            return_attn (bool): whether to return attention map
+
+        Returns:
+            new_x (torch.Tensor): [B, S_2, C], S_2 is the new number of
+                group tokens
+        """
+        group_tokens = self.norm_tokens(self.group_tokens)
+        x = self.norm_x(x)
+        # [B, S_2, C]
+        projected_group_tokens = self.project_group_token(group_tokens)
+        x, _ = self.pre_assign_attn(x)
+        new_x, attn_dict = self.assign(projected_group_tokens, x)
 
         new_x = self.reduction(new_x) + self.mlp_channels(self.norm_new_x(new_x))
 

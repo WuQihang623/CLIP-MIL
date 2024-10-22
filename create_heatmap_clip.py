@@ -9,11 +9,7 @@ import torch
 import openslide
 import numpy as np
 import pandas as pd
-from PIL import Image
 import matplotlib.pyplot as plt
-from src.models.CLIP_MIL import CLIP_MIL
-from src import clip
-from torch import nn
 
 def creat_heatmap(text_embedding, cls_names, wsi_names, wsi_dir, h5_dir, save_dir, device, patch_size=512):
     os.makedirs(save_dir, exist_ok=True)
@@ -67,8 +63,6 @@ def creat_heatmap(text_embedding, cls_names, wsi_names, wsi_dir, h5_dir, save_di
             f.close()
 
         print(f"finish {wsi_name}")
-
-
 
 def get_args():
     parser = argparse.ArgumentParser()

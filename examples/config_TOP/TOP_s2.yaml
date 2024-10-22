@@ -1,0 +1,42 @@
+model:
+  bagLevel_n_ctx: 16
+  instanceLevel_n_ctx: 16
+  all_ctx_trainable: False
+  csc: False
+  p_drop_out: 0
+  p_bag_drop_out: 0
+  pooling_strategy: learnablePrompt_multi
+  bagPrompt_ctx_init:
+    - "Examine the breast tissue image, looking for HER2 0. * * * * * * * * * *"
+    - "Examine the breast tissue image, looking for HER2 1+. * * * * * * * * * *"
+    - "Examine the breast tissue image, looking for HER2 2+. * * * * * * * * * *"
+    - "Examine the breast tissue image, looking for HER2 3+. * * * * * * * * * *"
+  knowledge_from_chatGPT:
+#    invasive cancer region: "high cell density with minimal spacing between cancer cells"
+#    in situ cancer region: "cancer cells confined within ducts or lobules"
+#    normal epithelial tissue: "cells arranged in an orderly and regular structure"
+#    immune tissue: "presence of extensive lymphocyte infiltration"
+#    stromal region: "proliferation of fibrous tissue with numerous fibroblasts"
+#    necrotic region: "destruction of cell structure with loss or coagulation of nuclei"
+#    background: "absence of cells, only stained background visible"
+    no cell membrane staining: "no apparent staining on cell membranes, with clear background staining"
+    weak cell membrane staining: "slight staining on cell membranes, with light coloration"
+    moderate cell membrane staining: "noticeable staining on cell membranes with moderate coloration"
+    strong cell membrane staining: "intense staining on cell membranes with deep brown coloration"
+
+  pathology_templates_t: 'an IHC stained image of {}.'
+
+batch_size: 1
+num_workers: 4
+lr: 0.001
+scheduler:
+  warmup_steps: 200
+  base_lr: 1.0e-6
+  max_lr: 1.0e-4
+  T_max: 200
+  eta_min: 1.0e-7
+n_epochs: 100
+seed: 2
+early_stop: 15
+weight_lossA: 25
+device: cuda

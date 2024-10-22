@@ -129,7 +129,7 @@ class PromptEmbedding(nn.Module):
             return self.forward_fixed(descriptions, ensemble)
 
 
-class CLIP_MIL(nn.Module):
+class MPL_MIL(nn.Module):
     def __init__(
             self,
             feat_dim: int,
@@ -146,7 +146,7 @@ class CLIP_MIL(nn.Module):
             visual_token: int = 0,
             **kwargs
     ):
-        super(CLIP_MIL, self).__init__()
+        super(MPL_MIL, self).__init__()
         self.feat_dim = feat_dim
         self.device = device if torch.cuda.is_available() else "cpu"
         self.text_encoder = clip.load_text_encoder(name=text_enc_name, device=self.device)
@@ -186,6 +186,8 @@ class CLIP_MIL(nn.Module):
                 self.fc = nn.Linear(in_features=2*feat_dim, out_features=feat_dim)
             elif self.fusion == "group":
                 self.fusion_block = GroupingBlock(dim=feat_dim, num_heads=1, num_group_token=4, num_output_group=1)
+            elif self.fusion == "crossattn":
+                self.fusion_block = CrossFusion(dim=feat_dim, num_heads=1, num_group_token=4, num_output_group=1)
             else:
                 raise ValueError("Unknown fusion method: {}".format(self.fusion))
         else:
@@ -283,6 +285,12 @@ class CLIP_MIL(nn.Module):
                 ], dim=1)
                 wsi_feature, fusion_attn_dict = self.fusion_block(wsi_feature)
                 wsi_feature = torch.mean(wsi_feature.squeeze(0), dim=0, keepdim=True)
+            elif self.fusion == "crossattn":
+                wsi_feature = torch.cat([
+                    cls_features, stain_features
+                ], dim=1)
+                wsi_feature, fusion_attn_dict = self.fusion_block(wsi_feature)
+                wsi_feature = torch.mean(wsi_feature.squeeze(0), dim=0, keepdim=True)
             else:
                 raise ValueError("Unknown fusion method: {}".format(self.fusion))
             output_dict["inst_attn"] = cls_attn
@@ -298,13 +306,13 @@ class CLIP_MIL(nn.Module):
 
 if __name__ == '__main__':
     import yaml
-    with open("/home/auwqh/code/CLIP-MIL/examples/config_numhead4/clip_group_ensemble1.yaml", 'r') as f:
+    with open("/home/auwqh/code/CLIP-MIL/examples/config_MPL/clip_group_ensemble.yaml", 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
         f.close()
-    model = CLIP_MIL(
+    model = MPL_MIL(
         **config["model"]
     )
-    model.train()
+    model.eval()
     output = model(torch.randn(1, 1024, 512))
     for k, v in output.items():
         if v is not None:

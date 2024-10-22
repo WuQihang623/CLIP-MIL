@@ -15,9 +15,9 @@ from sklearn.metrics import confusion_matrix
 from src.models.ABMIL import ABMIL
 from src.models.CLAM import CLAM_MB
 from src.models.TransMIL import TransMIL
-from src.models.CLIP_MIL import CLIP_MIL
+from src.models.MPL_MIL import MPL_MIL
 from src.train_utils.loss import MIL_Loss
-from src.clip_trainer import test_one_epoch
+from src.models.TOP import PromptLearner, TOP
 from src.datasets.dataset_CLIP_MIL import dataset_CLIP_MIL
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
@@ -72,9 +72,16 @@ def test_one_fold(model, fold, loss_fn, device, args):
         pin_memory=True
     )
 
-    test_loss, test_acc, test_f1, test_precision, test_recall, test_preds_list, test_targets_list = test_one_epoch(
-        model, test_loader, loss_fn, device=device
-    )
+    if args.model != "TOP":
+        from src.MPL_trainer import test_one_epoch
+        test_loss, test_acc, test_f1, test_precision, test_recall, test_preds_list, test_targets_list = test_one_epoch(
+            model, test_loader, loss_fn, device=device
+        )
+    else:
+        from src.TOP_trainer import test_one_epoch
+        test_loss, test_acc, test_f1, test_precision, test_recall, test_preds_list, test_targets_list = test_one_epoch(
+            model, test_loader, 0, device
+        )
     return test_preds_list, test_targets_list
 
 def main(args):
@@ -88,13 +95,38 @@ def main(args):
         with open(args.config, 'r') as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
             f.close()
-        model = CLIP_MIL(**config["model"])
+        model = MPL_MIL(**config["model"])
     elif args.model == "ABMIL":
         model = ABMIL(num_classes=args.num_classes, feature_dim=args.feat_dim)
     elif args.model == "CLAM":
         model = CLAM_MB(n_classes=args.num_classes, feature_dim=args.feat_dim)
     elif args.model == "TransMIL":
         model = TransMIL(n_classes=args.num_classes, feature_dim=args.feat_dim)
+    elif args.model == "TOP":
+        with open(args.config, 'r') as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
+            f.close()
+        model_config = config["model"]
+        bag_prompt_learner = PromptLearner(n_ctx=model_config["bagLevel_n_ctx"],
+                                           ctx_init=model_config["bagPrompt_ctx_init"],
+                                           all_ctx_trainable=model_config["all_ctx_trainable"],
+                                           csc=model_config["csc"],
+                                           classnames=["HER2 0", "HER2 1+", "HER2 2+", "HER2 3+"],
+                                           clip_model='ViT-B/32', p_drop_out=model_config["p_bag_drop_out"])
+        prompts_pathology_template_withDescription = [
+            model_config["pathology_templates_t"].format(tissue_type).replace(".", ", which is {}".format(
+                tissue_description)) for
+            tissue_type, tissue_description in model_config["knowledge_from_chatGPT"].items()]
+        instancePrompt_ctx_init = [i + '* * * * * * * * * *' for i in prompts_pathology_template_withDescription]
+        instance_prompt_learner = PromptLearner(n_ctx=model_config["instanceLevel_n_ctx"],
+                                                ctx_init=instancePrompt_ctx_init,
+                                                all_ctx_trainable=model_config["all_ctx_trainable"],
+                                                csc=model_config["csc"],
+                                                classnames=["Prototype {}".format(i) for i in
+                                                            range(len(instancePrompt_ctx_init))],
+                                                clip_model='ViT-B/32', p_drop_out=model_config["p_drop_out"])
+
+        model = TOP(bag_prompt_learner, instance_prompt_learner, clip_model="ViT-B/32", pooling_strategy=model_config["pooling_strategy"])
     else:
         raise ValueError(f"model name error!")
     model.to(device)
@@ -158,7 +190,7 @@ def main(args):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default="TransMIL", choices=["ABMIL", "CLAM", "TransMIL", "CLIPMIL"])
+    parser.add_argument('--model', type=str, default="TransMIL", choices=["ABMIL", "CLAM", "TransMIL", "CLIPMIL", "TOP"])
     parser.add_argument("--config", type=str, default="")
     parser.add_argument("--num_classes", type=int, default=4)
     parser.add_argument("--feat_dim", type=int, default=512)

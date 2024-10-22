@@ -2,13 +2,6 @@
 <project version="4">
   <component name="PublishConfigData" autoUpload="On explicit save action" serverName="auwqh@10.10.40.248:22_CLIP-MIL" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
-      <paths name="auwqh@10.10.40.248:22 password">
-        <serverdata>
-          <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
-          </mappings>
-        </serverdata>
-      </paths>
       <paths name="auwqh@10.10.40.248:22_CLIP-MIL">
         <serverdata>
           <mappings>
@@ -16,7 +9,56 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="auwqh@10.10.40.248:22_HER2_MIL">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="auwqh@10.10.40.248:22_HER2_Scoring">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="auwqh@10.10.40.248:22_IBMIL">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="auwqh@10.10.40.248:22_PDL1">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="auwqh@10.10.40.248:22_TME">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="auwqh@10.10.40.248:22_TOP">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="auwqh@10.10.40.248:22_ViLa-MIL">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="wqh@218.192.172.56:42322_LLaMA-Factory">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />

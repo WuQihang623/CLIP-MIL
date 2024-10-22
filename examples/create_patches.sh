@@ -18,8 +18,26 @@ export PYTHONPATH=./:$PYTHONPATH
 wz=1
 cd ../
 
-srun python create_patches_fp.py --source "/home/auwqh/dataset/PDL1/meta_data/Testing/WSI/*.tiff" \
+#srun python create_patches_fp.py --source "/home/auwqh/dataset/HER2/WSI/Testing/WSI/*.tiff" \
+#                                 --step_size 256 --patch_size 256 --patch --seg \
+#                                 --save_dir /home/auwqh/dataset/HER2/patches_features_10x/ \
+#                                 --patch_level 2 \
+#                                 --ann_positive /home/auwqh/dataset/HER2/control_group/
+#
+#srun python create_patches_fp.py --source "/home/auwqh/dataset/HER2/WSI/Testing/WSI/*.tiff" \
+#                                 --step_size 256 --patch_size 256 --patch --seg \
+#                                 --save_dir /home/auwqh/dataset/HER2/patches_features_5x/ \
+#                                 --patch_level 3 \
+#                                 --ann_positive /home/auwqh/dataset/HER2/control_group/
+
+srun python create_patches_fp.py --source "/home/auwqh/dataset/WarwickHER2/WSI/IHC/*.ndpi" \
                                  --step_size 256 --patch_size 256 --patch --seg \
-                                 --save_dir /home/auwqh/dataset/PDL1/meta_data/Testing/patches_features_20x/ \
-                                 --patch_level 1 \
-                                 --ann_positive /home/auwqh/dataset/PDL1/meta_data/Testing/control_group/ --remove_control
+                                 --save_dir /home/auwqh/dataset/WarwickHER2/patches_features_10x/ \
+                                 --patch_level 2 \
+                                 --ann_positive /home/auwqh/dataset/WarwickHER2/control_group/
+
+srun python create_patches_fp.py --source "/home/auwqh/dataset/WarwickHER2/WSI/IHC/*.ndpi" \
+                                 --step_size 256 --patch_size 256 --patch --seg \
+                                 --save_dir /home/auwqh/dataset/WarwickHER2/patches_features_5x/ \
+                                 --patch_level 3 \
+                                 --ann_positive /home/auwqh/dataset/WarwickHER2/control_group/
